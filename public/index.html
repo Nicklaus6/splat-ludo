@@ -647,9 +647,25 @@ function inkConfetti(){
 
 /* ================= net ================= */
 let ws=null, mySeat=-1, hostSeat=-1, seatNames=[null,null,null,null], joined=false;
+let pendingSeats=new Set();          // seats currently in "waiting-for-reconnect" state; host plays them as CPU
+let lastAppliedSeq=0;                 // seq of last relay message we've applied (host's own outbound counts once echoed back)
+let pendingBuffer=[];                 // relay messages queued while waiting for snapshot after reconnect
+let waitingSnapshot=false;
 const isHost=()=>mySeat>=0&&mySeat===hostSeat;
 const seatIsCpu=s=>seatNames[s]===null;
+// "acts like CPU": either an actual CPU seat, or a human seat currently disconnected (pending reconnect)
+const seatIsBotLike=s=>seatIsCpu(s)||pendingSeats.has(s);
 const seatLabel=s=>seatIsCpu(s)?SQUADS[s]:seatNames[s].name;
+
+// stable per-browser id for reconnection
+function getClientId(){
+  let id=localStorage.getItem('splatClientId');
+  if(!id){
+    id='c-'+Math.random().toString(36).slice(2)+'-'+Math.random().toString(36).slice(2);
+    localStorage.setItem('splatClientId',id);
+  }
+  return id;
+}
 
 function netSend(m){ if(ws&&ws.readyState===1)ws.send(JSON.stringify(m)); }
 
@@ -681,9 +697,16 @@ function handleNet(m){
     case 'welcome':
       if(m.url)$('#lanUrl').innerHTML=`局域网地址: <b>${m.url}</b>`;
       if(m.phase==='playing'&&!joined){
-        $('#lobbySub').textContent='一局游戏正在进行中,等本局结束后你会自动入座…';
+        $('#lobbySub').textContent='尝试接回上一局…';
         $('#namer').style.display='none';
         $('#startBtn').style.display='none';
+        const savedName=localStorage.getItem('splatName')||'';
+        netSend({t:'join',name:savedName,clientId:getClientId()});
+        joined=true;
+        // if we're not actually pending, we'll silently become a spectator; update the hint after a short delay
+        setTimeout(()=>{
+          if(mySeat<0) $('#lobbySub').textContent='一局游戏正在进行中,等本局结束后你会自动入座…';
+        },600);
       }
       break;
     case 'seated':
@@ -691,6 +714,13 @@ function handleNet(m){
         toast(`${SQUADS[m.preferred]}被抢先了,给你分到 ${SQUADS[m.seat]}!`);
       }
       mySeat=m.seat;
+      if(m.reconnected){
+        toast(`欢迎回来!接管 ${SQUADS[m.seat]} 座位 🦑`);
+        // we'll get a snapshot from host; buffer any relays until it arrives
+        waitingSnapshot=true;
+        pendingBuffer=[];
+        $('#setupOverlay').classList.add('hidden');
+      }
       break;
     case 'lobby':
       if(phase==='over'){ location.reload(); return; }
@@ -700,13 +730,44 @@ function handleNet(m){
       startGame(m);
       break;
     case 'roll':
-      enqueue(()=>applyRoll(m.seat,m.dice));
+      if(waitingSnapshot){ pendingBuffer.push(m); break; }
+      if(m.seq && m.seq<=lastAppliedSeq) break;
+      enqueue(()=>{ lastAppliedSeq=m.seq||lastAppliedSeq; return applyRoll(m.seat,m.dice); });
       break;
     case 'move':
-      enqueue(()=>applyMove(m.p,m.i));
+      if(waitingSnapshot){ pendingBuffer.push(m); break; }
+      if(m.seq && m.seq<=lastAppliedSeq) break;
+      enqueue(()=>{ lastAppliedSeq=m.seq||lastAppliedSeq; return applyMove(m.p,m.i); });
       break;
     case 'left':
-      onPlayerLeft(m.seat,m.hostSeat);
+      onPlayerLeft(m.seat,m.hostSeat,m.pending);
+      break;
+    case 'reconnected':
+      hostSeat=m.hostSeat;
+      pendingSeats.delete(m.seat);
+      if(m.name && seatNames[m.seat]) seatNames[m.seat]={name:m.name};
+      const pt=$('#ptype'+m.seat);if(pt)pt.textContent='玩家';
+      log(`${tag(m.seat)} 掉线后重新连回 🌐`);
+      break;
+    case 'reconnectExpired':
+      if(m.seat!==undefined){
+        pendingSeats.delete(m.seat);
+        seatNames[m.seat]=null;
+        const pt2=$('#ptype'+m.seat);if(pt2)pt2.textContent='CPU';
+        log(`${tag(m.seat)} 的座位保留超时,交给 CPU 接管`);
+      }
+      break;
+    case 'snapshotReq':
+      // any seated client can serve the snapshot — server picks one to ask
+      if(mySeat>=0){
+        try{
+          const state=buildGameSnapshot();
+          netSend({t:'snapshot',forId:m.forId,seat:m.seat,appliedSeq:lastAppliedSeq,state});
+        }catch(e){console.error('snapshot build failed',e);}
+      }
+      break;
+    case 'snapshot':
+      applyGameSnapshot(m);
       break;
   }
 }
@@ -722,6 +783,9 @@ function toast(msg){
 function renderLobby(m){
   hostSeat=m.hostSeat;
   seatNames=m.seats;
+  // reflect pending state for in-game display
+  pendingSeats.clear();
+  for(let i=0;i<4;i++) if(m.seats[i]&&m.seats[i].pending) pendingSeats.add(i);
   const seatsEl=$('#seats');
   seatsEl.innerHTML='';
   for(let p=0;p<4;p++){
@@ -769,7 +833,7 @@ function pickSeat(p){
     localStorage.setItem('splatName',name);
     localStorage.setItem('splatColor',String(p));
     joined=true;
-    netSend({t:'join',name,seat:p});
+    netSend({t:'join',name,seat:p,clientId:getClientId()});
     tone(523,.12,'triangle',.12);
   }else{
     // already joined, request color swap
@@ -900,10 +964,10 @@ function beginTurn(){
   $('#dice').classList.toggle('disabled',!mine);
   if(mine){
     $('#diceHint').textContent='点击骰子开掷!';
-  }else if(seatIsCpu(cur)){
-    $('#diceHint').textContent='CPU 回合…';
+  }else if(seatIsBotLike(cur)){
+    $('#diceHint').textContent=pendingSeats.has(cur)?`${seatLabel(cur)} 掉线中,房主代打…`:'CPU 回合…';
     if(isHost())setTimeout(()=>{
-      if(phase==='awaitRoll'&&seatIsCpu(cur)&&isHost())
+      if(phase==='awaitRoll'&&seatIsBotLike(cur)&&isHost())
         netSend({t:'roll',seat:cur,dice:1+Math.floor(Math.random()*6)});
     },800);
   }else{
@@ -962,20 +1026,15 @@ async function applyRoll(seat,d){
       $('#dice').classList.toggle('disabled',!mine);
       if(mine){
         $('#diceHint').textContent=`点击骰子再掷! (剩 ${left} 次)`;
-      }else if(seatIsCpu(cur)&&isHost()){
-        $('#diceHint').textContent='CPU 再掷…';
+      }else if(seatIsBotLike(cur)&&isHost()){
+        $('#diceHint').textContent=pendingSeats.has(cur)?'房主代打再掷…':'CPU 再掷…';
         setTimeout(()=>{
-          if(phase==='awaitRoll'&&seatIsCpu(cur)&&isHost())
+          if(phase==='awaitRoll'&&seatIsBotLike(cur)&&isHost())
             netSend({t:'roll',seat:cur,dice:1+Math.floor(Math.random()*6)});
         },600);
       }else{
         $('#diceHint').textContent=`等待 ${seatLabel(cur)} 再掷…`;
       }
-      // if it's a disconnected human seat, host takes over
-      if(!seatIsCpu(cur)&&!mine){
-        // seat is a human that's still connected — no action needed
-      }
-      // handle host-driven disconnected seat: seatNames[cur] will be null then, covered above
       return;
     }
     $('#diceHint').textContent='没有可动的小鱿…';
@@ -988,11 +1047,11 @@ async function applyRoll(seat,d){
   if(cur===mySeat){
     $('#diceHint').textContent='选择一只发光的小鱿!';
     mv.forEach(pc=>pc.node.classList.add('movable'));
-  }else if(seatIsCpu(cur)){
-    $('#diceHint').textContent='CPU 思考中…';
+  }else if(seatIsBotLike(cur)){
+    $('#diceHint').textContent=pendingSeats.has(cur)?'房主代想中…':'CPU 思考中…';
     if(isHost()){
       await sleep(rnd(500,850));
-      if(phase==='awaitMove'&&seatIsCpu(cur)&&isHost()){
+      if(phase==='awaitMove'&&seatIsBotLike(cur)&&isHost()){
         const pick=aiPick(mv);
         netSend({t:'move',p:pick.p,i:pick.i});
       }
@@ -1213,6 +1272,74 @@ function updateBlockadeVisuals(){
   }
 }
 
+/* ==== snapshot for reconnecting players ==== */
+function buildGameSnapshot(){
+  return {
+    pieces: pieces.map(pc=>({p:pc.p,i:pc.i,progress:pc.progress})),
+    turf: [...turf],
+    cur, dice, phase, winner,
+    sixStreak, rollAttempts,
+    seatNames,
+  };
+}
+function applyGameSnapshot(m){
+  const st=m.state;
+  if(!st){ waitingSnapshot=false; return; }
+  // rebuild board & side cards if we haven't started locally yet
+  const alreadyBooted = pieces.length>0;
+  if(!alreadyBooted){
+    hostSeat = /* comes from lobby snapshots later; keep whatever we have */ hostSeat;
+    seatNames = st.seatNames || seatNames;
+    buildSideCards();
+    for(let p=0;p<4;p++)for(let i=0;i<4;i++){
+      const pc={p,i,progress:-1,node:null};
+      makePieceNode(pc);
+      pieces.push(pc);
+    }
+  }
+  // sync piece progress
+  for(const sp of st.pieces){
+    const pc=pieces.find(q=>q.p===sp.p&&q.i===sp.i);
+    if(pc) pc.progress=sp.progress;
+  }
+  // sync turf
+  for(let i=0;i<52;i++){
+    if(st.turf[i]!==turf[i] && st.turf[i]>=0){
+      paintTurf(i, st.turf[i]);
+    }
+  }
+  // sync homes counters
+  for(let p=0;p<4;p++){
+    const homeCount=pieces.filter(q=>q.p===p&&q.progress===56).length;
+    const el=$('#homes'+p); if(el) el.textContent=`到家 ${homeCount} / 4`;
+  }
+  cur = st.cur ?? 0;
+  dice = st.dice ?? 0;
+  winner = st.winner ?? -1;
+  sixStreak = st.sixStreak ?? 0;
+  rollAttempts = st.rollAttempts ?? 0;
+  renderPositions();
+  updateBlockadeVisuals();
+  updateTurfBars();
+  setActiveCard();
+  drawDiceFace(dice, dice?COLORSD[cur]:'#221d3a');
+  $('#dice').classList.add('disabled');
+  lastAppliedSeq = m.appliedSeq || 0;
+  // flush any buffered relays with seq > lastAppliedSeq
+  const buf=pendingBuffer; pendingBuffer=[]; waitingSnapshot=false;
+  for(const bm of buf){
+    if(bm.seq && bm.seq<=lastAppliedSeq) continue;
+    if(bm.t==='roll') enqueue(()=>{ lastAppliedSeq=bm.seq||lastAppliedSeq; return applyRoll(bm.seat,bm.dice); });
+    else if(bm.t==='move') enqueue(()=>{ lastAppliedSeq=bm.seq||lastAppliedSeq; return applyMove(bm.p,bm.i); });
+  }
+  // if it's my turn now, kick beginTurn so the dice becomes clickable
+  if(winner<0 && (phase!=='over')){
+    // best-effort: assume awaiting roll
+    phase='setup';                  // force beginTurn to reset
+    beginTurn();
+  }
+}
+
 function nextTurn(extra){
   if(winner>=0)return;
   if(!extra){cur=(cur+1)%4; sixStreak=0;}
@@ -1220,14 +1347,21 @@ function nextTurn(extra){
   beginTurn();
 }
 
-function onPlayerLeft(seat,newHost){
+function onPlayerLeft(seat,newHost,isPending){
   hostSeat=newHost;
   if(phase==='setup')return;
   if(seatNames[seat]===null)return;
-  seatNames[seat]=null;   // becomes CPU
-  const pt=$('#ptype'+seat);if(pt)pt.textContent='CPU';
-  log(`${tag(seat)} 掉线了,由 CPU 接管`);
-  // if it was their turn, the (possibly new) host takes over
+  if(isPending){
+    pendingSeats.add(seat);
+    const pt=$('#ptype'+seat);if(pt)pt.textContent='掉线中';
+    log(`${tag(seat)} 掉线了,座位保留 5 分钟等待重连,期间由房主代打`);
+  }else{
+    seatNames[seat]=null;
+    pendingSeats.delete(seat);
+    const pt=$('#ptype'+seat);if(pt)pt.textContent='CPU';
+    log(`${tag(seat)} 掉线了,由 CPU 接管`);
+  }
+  // if it was their turn, the (possibly new) host takes over immediately
   if(isHost()&&cur===seat){
     if(phase==='awaitRoll'||phase==='sentRoll'){
       setTimeout(()=>{

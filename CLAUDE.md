@@ -24,10 +24,14 @@ Clients stay in sync via a deterministic state machine, not server-authoritative
 
 ### Server protocol (JSON over WebSocket)
 
-Client→server: `join` (name, optional preferred `seat` 0-3), `pickSeat` (change color mid-lobby), `start`/`restart` (host only), `roll`/`move` (relayed).
-Server→client: `welcome`, `seated` (final `seat` + optional `preferred` if it fell back to a different seat), `lobby` (snapshot), `start`, `roll`/`move` (with `from`), `left`.
+Client→server: `join` (name, optional preferred `seat` 0-3, `clientId` for reconnect), `pickSeat` (change color mid-lobby), `start`/`restart` (host only), `roll`/`move` (relayed), `snapshot` (mid-game state upload for a reconnecting peer).
+Server→client: `welcome`, `seated` (final `seat` + optional `preferred` if it fell back; `reconnected:true` when restored from pending), `lobby` (snapshot, `seats[i].pending` flags disconnected-but-held seats), `start`, `roll`/`move` (with `from` and `seq`), `left` (with `pending` if the seat is held for reconnect), `reconnected`, `reconnectExpired`, `snapshotReq` (server asks a peer to build a snapshot for the reconnecting client), `snapshot` (relayed state to the reconnecting client).
 
 Seat = color: seat index (0-3) is the player's fixed identity **and** color slot (COLORS/SQUADS/START are indexed by seat). Players pick their seat in the lobby (先到先得) via `join`/`pickSeat`; server is authoritative and silently reassigns on conflict.
+
+### Reconnect (5-minute window)
+
+Each browser has a stable `clientId` in localStorage. On disconnect *during play*, server reserves the seat in `pending` for `RECONNECT_WINDOW_MS` (5 min); the host client CPU-plays that seat in the meantime (`pendingSeats` set + `seatIsBotLike`). On reconnect, server matches by `clientId` → restores seat and asks another seated peer for a `snapshot` (pieces/turf/cur/dice/…) — the returning client applies it, then flushes any relay messages buffered while waiting (dedup by `seq`). Lobby-phase disconnects release the seat immediately (no pending).
 
 ### Game state in index.html
 
