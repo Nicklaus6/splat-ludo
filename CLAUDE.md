@@ -4,8 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-- `npm start` — run the server (port 3000, or `PORT` env var). Prints localhost + LAN URLs on startup.
-- No build, lint, or test tooling exists. Only dependency: `ws`.
+- `pnpm start` — run the server (port 3000, or `PORT` env var). Prints localhost + LAN URLs on startup.
+- No build, lint, or test tooling exists. Only dependency: `ws`. Use `pnpm` (not npm/yarn) for install and any future scripts.
 
 ## Architecture
 
