@@ -48,8 +48,8 @@ header{display:flex;align-items:center;justify-content:center;gap:14px;padding:6
 .logo .l1{color:var(--c1);transform:rotate(4deg) translateY(-3px)}
 .logo .l2{color:var(--c2);transform:rotate(-3deg)}
 .logo .cn{font-size:22px;color:var(--paper);margin-left:10px;transform:rotate(-2deg);opacity:.9}
-#muteBtn{background:#2c2350;border:2px solid rgba(255,255,255,.15);color:var(--paper);border-radius:14px;padding:6px 12px;font-family:var(--font-body);font-weight:700;font-size:15px;cursor:pointer;transition:transform .15s}
-#muteBtn:hover{transform:scale(1.08) rotate(-2deg)}
+#muteBtn,#rulesBtn{background:#2c2350;border:2px solid rgba(255,255,255,.15);color:var(--paper);border-radius:14px;padding:6px 12px;font-family:var(--font-body);font-weight:700;font-size:15px;cursor:pointer;transition:transform .15s}
+#muteBtn:hover,#rulesBtn:hover{transform:scale(1.08) rotate(-2deg)}
 #netTag{font-size:13px;font-weight:700;background:rgba(255,255,255,.1);padding:5px 12px;border-radius:12px;opacity:.85}
 #netTag.bad{background:#5c1f36;color:#ff9db9}
 
@@ -113,7 +113,12 @@ main{display:flex;gap:22px;align-items:flex-start;justify-content:center;flex-wr
 @keyframes pulse{0%,100%{transform:scale(1);opacity:.9}50%{transform:scale(1.35);opacity:.3}}
 .piece.hop .body{animation:hop .13s ease-out}
 @keyframes hop{50%{transform:translateY(-9px) scaleX(1.06)}}
+.piece.flying .body{animation:flySpin .7s ease-in-out}
+@keyframes flySpin{50%{transform:rotate(180deg) scale(1.15)}100%{transform:rotate(360deg) scale(1)}}
+.piece.blockade .ring{opacity:.75;animation:blockPulse 1.4s ease-in-out infinite;stroke-dasharray:4 3}
+@keyframes blockPulse{0%,100%{transform:scale(1.15);opacity:.7}50%{transform:scale(1.3);opacity:.35}}
 .splatburst{pointer-events:none}
+.flightpath{pointer-events:none}
 
 .overlay{
   position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;
@@ -163,6 +168,18 @@ main{display:flex;gap:22px;align-items:flex-start;justify-content:center;flex-wr
 .bigbtn:active{transform:translateY(4px);box-shadow:0 2px 0 var(--c1d)}
 .bigbtn:disabled{filter:grayscale(.7) brightness(.6);cursor:default;transform:none}
 .rules{margin-top:18px;font-size:12.5px;opacity:.55;font-weight:600;line-height:1.7}
+#rulesPanel{max-width:600px;text-align:left;max-height:82vh;display:flex;flex-direction:column}
+#rulesPanel h1{text-align:center;font-size:32px;margin-bottom:10px}
+#rulesPanel .rbody{overflow-y:auto;padding-right:6px;font-size:14px;line-height:1.65;font-weight:500}
+#rulesPanel .rbody h3{font-family:var(--font-disp);font-size:17px;margin:14px 0 6px;letter-spacing:1px;color:var(--c1)}
+#rulesPanel .rbody h3:first-child{margin-top:0}
+#rulesPanel .rbody b{color:var(--c0)}
+#rulesPanel .rbody code{background:rgba(0,0,0,.35);padding:1px 6px;border-radius:6px;font-size:12.5px;color:var(--c2)}
+#rulesPanel .rbody ul{padding-left:20px;margin:4px 0}
+#rulesPanel .rbody li{margin:3px 0}
+#rulesPanel .closebar{margin-top:16px;text-align:center}
+#rulesPanel .closebtn{font-family:var(--font-disp);font-size:16px;color:#181230;background:var(--c1);border:none;border-radius:14px;padding:8px 24px;cursor:pointer;box-shadow:0 4px 0 var(--c1d);letter-spacing:1px}
+#rulesPanel .closebtn:hover{transform:scale(1.06) rotate(-2deg)}
 #lanUrl{margin-top:14px;font-size:14px;font-weight:700;background:rgba(0,0,0,.3);border-radius:12px;padding:8px 14px;display:inline-block;letter-spacing:.5px;user-select:text;-webkit-user-select:text}
 #lanUrl b{color:var(--c1)}
 #waitingNames{font-size:13px;opacity:.6;font-weight:600;margin-top:10px;min-height:18px}
@@ -192,6 +209,7 @@ main{display:flex;gap:22px;align-items:flex-start;justify-content:center;flex-wr
     </div>
     <span id="netTag">连接中…</span>
     <button id="muteBtn" title="声音开关">🔊 音效</button>
+    <button id="rulesBtn" title="查看规则">📖 规则</button>
   </header>
 
   <main>
@@ -225,7 +243,53 @@ main{display:flex;gap:22px;align-items:flex-start;justify-content:center;flex-wr
     <button class="bigbtn" id="startBtn" disabled>开 战 !</button>
     <div id="waitingNames"></div>
     <div id="lanUrl">局域网地址: <b>…</b></div>
-    <div class="rules">空位由 CPU 补上 · 掷 6 出门并再掷一次 · 踩中对手把它喷回老家<br>★ 格是安全区 · 走过的格子会被染上你的墨! 4 只小鱿全部到家即获胜</div>
+    <div class="rules">空位由 CPU 补上 · 想看完整规则?点右上角 <b>📖 规则</b></div>
+  </div>
+</div>
+
+<!-- rules overlay -->
+<div class="overlay hidden" id="rulesOverlay">
+  <div class="panel" id="rulesPanel">
+    <h1>📖 战斗规则</h1>
+    <div class="rbody">
+      <h3>基础</h3>
+      <ul>
+        <li>4 只小鱿轮流出战,先把全部小鱿送回家的一方获胜。</li>
+        <li>掷出 <b>6</b> 才能出门,并且可以 <b>再掷一次</b>。</li>
+        <li>踩中对手把它 <b>喷回老家</b>(★ 起点或安全格上的对手除外),然后 <b>再掷一次</b>。</li>
+        <li>回到家门内后必须 <b>刚好</b> 掷出剩余步数,否则不能动。</li>
+      </ul>
+      <h3>🛡️ 安全区</h3>
+      <ul>
+        <li>★ 星格 与 <b>各家起点(➤)</b> 均为安全区,上面的小鱿无法被喷。</li>
+      </ul>
+      <h3>🎨 地盘系统</h3>
+      <ul>
+        <li>走过的格子会染上你的墨,侧栏实时显示占地百分比。</li>
+        <li><b>己方墨保护</b>:站在自己颜色的墨上,无法被喷。</li>
+        <li><b>敌方墨减速</b>:走到停在敌方颜色的墨上,即使掷了 6 也 <b>不再掷</b>(靠喷子/回家获得的再掷仍然有效)。</li>
+      </ul>
+      <h3>🚀 起手连掷</h3>
+      <ul>
+        <li>所有小鱿都还没出门时,若没掷到 6,可 <b>最多连掷 3 次</b> 尝试出门。</li>
+      </ul>
+      <h3>💦 三连 6 惩罚</h3>
+      <ul>
+        <li>同回合连掷三个 6 → <b>本回合作废</b>,棋子不动,直接换人。</li>
+      </ul>
+      <h3>🧱 双子路障</h3>
+      <ul>
+        <li>同色 2 只以上叠在同一格 → 形成路障,<b>无法被喷、也无法被跨越</b>。</li>
+        <li>敌方的小鱿不能落在也不能穿过路障。自家的可以自由穿过。</li>
+      </ul>
+      <h3>✈️ 飞行捷径</h3>
+      <ul>
+        <li>棋盘上每家有一条 <b>本色虚线飞行道</b>,起点是自家路径上的第 20 格。</li>
+        <li>只有 <b>本色</b> 小鱿 <b>正好停在</b> 自家起飞格,就沿虚线飞到第 32 格。</li>
+        <li>飞抵后正常结算:可以喷子、被自家墨保护、被敌方墨减速、被路障挡下(挡下则不飞)。</li>
+      </ul>
+    </div>
+    <div class="closebar"><button class="closebtn" id="rulesCloseBtn">明白啦!</button></div>
   </div>
 </div>
 
@@ -249,6 +313,11 @@ const COLORSD = ['#c9226a','#7ab400','#00a2c2','#d96b00'];
 const SQUADS  = ['樱花鱿','青柠鱿','苏打鱿','橘子鱿'];
 const START   = [1,14,27,40];
 const SAFE    = new Set([1,14,27,40,9,22,35,48]);
+// flight shortcut: player p's own piece landing exactly on progress==FLIGHT_FROM
+// flies to progress==FLIGHT_TO. Track cells: from=(START[p]+20)%52 → 21/34/47/8;
+// to=(START[p]+32)%52 → 33/46/7/20. None collide with SAFE (which is 1,14,27,40,9,22,35,48).
+const FLIGHT_FROM = 20;
+const FLIGHT_TO   = 32;
 
 const TRACK = [
  [0,6],[1,6],[2,6],[3,6],[4,6],[5,6],
@@ -340,6 +409,10 @@ const sfx={
   denied(){tone(140,.2,'sawtooth',.08)}
 };
 $('#muteBtn').onclick=()=>{muted=!muted;$('#muteBtn').textContent=muted?'🔇 静音':'🔊 音效';};
+$('#rulesBtn').onclick=()=>{$('#rulesOverlay').classList.remove('hidden');};
+$('#rulesCloseBtn').onclick=()=>{$('#rulesOverlay').classList.add('hidden');};
+$('#rulesOverlay').addEventListener('click',e=>{if(e.target.id==='rulesOverlay')$('#rulesOverlay').classList.add('hidden');});
+sfx.whoosh=()=>{ if(muted)return; noiseBurst(.35,.16); tone(720,.16,'sine',.09); tone(1040,.22,'sine',.08,.06); };
 
 /* ================= board drawing ================= */
 const board=$('#board');
@@ -403,6 +476,8 @@ function drawBoard(){
       const t=el('text',{x:x+CS/2,y:y+CS/2+6,'text-anchor':'middle','font-size':15,fill:'rgba(0,0,0,.5)','font-weight':800},layers.marks);
       t.textContent='➤';
       t.setAttribute('transform',`rotate(${[0,90,180,270][owner]} ${x+CS/2} ${y+CS/2})`);
+      // small ★ tag so players see start cells are also safe
+      el('text',{x:x+CS-8,y:y+11,'text-anchor':'middle','font-size':11,fill:'rgba(0,0,0,.55)','font-weight':800},layers.marks).textContent='★';
     }
   });
 
@@ -429,6 +504,20 @@ function drawBoard(){
   const gt=el('text',{x:cx,y:cy+5,'text-anchor':'middle','font-size':13,'font-weight':800,fill:'var(--paper)',
     'font-family':"'Baloo 2','PingFang SC',sans-serif"},layers.marks);
   gt.textContent='GOAL';
+
+  // flight shortcut lines
+  for(let p=0;p<4;p++){
+    const fi=(START[p]+FLIGHT_FROM)%52, ti=(START[p]+FLIGHT_TO)%52;
+    const [fx,fy]=px(TRACK[fi]), [tx,ty]=px(TRACK[ti]);
+    el('line',{x1:fx,y1:fy,x2:tx,y2:ty,stroke:COLORS[p],'stroke-width':3,'stroke-dasharray':'6 6',
+      'stroke-linecap':'round',opacity:.45,class:'flightpath'},layers.deco);
+    // arrowhead-ish dot at destination
+    el('circle',{cx:tx,cy:ty,r:5,fill:COLORS[p],opacity:.55,class:'flightpath'},layers.deco);
+    // ✈ glyph on the flight cell
+    const jet=el('text',{x:fx,y:fy-CS/2+11,'text-anchor':'middle','font-size':11,'font-weight':800,
+      fill:COLORS[p],opacity:.9},layers.marks);
+    jet.textContent='✈';
+  }
 }
 
 /* ================= turf ================= */
@@ -689,6 +778,7 @@ function drawDiceFace(v,color='#221d3a'){
 
 /* ================= game ================= */
 let cur=0, dice=0, phase='setup', winner=-1, lastMovables=[];
+let sixStreak=0, rollAttempts=0;
 const msgBox=$('#msg');
 function log(html){
   const d=document.createElement('div');
@@ -700,13 +790,43 @@ const tag=p=>`<b style="color:${COLORS[p]}">${seatLabel(p)}</b>`;
 
 function trackIdx(pc){return (START[pc.p]+pc.progress)%52;}
 function occupantsAt(idx){return pieces.filter(q=>q.progress>=0&&q.progress<=50&&trackIdx(q)===idx);}
+// blockade = 2+ same-color pieces on same track cell
+function blockadeAt(idx){
+  const occ=occupantsAt(idx);
+  if(occ.length<2)return -1;
+  const first=occ[0].p;
+  return occ.every(q=>q.p===first)?first:-1;
+}
+// does moving player `p`'s piece from current progress `pr` by `d` steps hit an enemy blockade?
+// checks intermediate + landing track cells; blockades don't apply inside the home column (progress>=51)
+function pathBlocked(p,pr,d){
+  const start=(pr===-1)?0:pr+1;
+  const end=pr+d;
+  for(let s=start;s<=end;s++){
+    if(s>50)break;                // home column: no blockade rule
+    if(pr===-1&&s!==0)continue;   // exiting home: only the start cell matters
+    const idx=(START[p]+s)%52;
+    const b=blockadeAt(idx);
+    if(b>=0&&b!==p)return true;
+  }
+  return false;
+}
 function movablePieces(p,d){
   return pieces.filter(pc=>{
     if(pc.p!==p)return false;
     if(pc.progress===56)return false;
-    if(pc.progress===-1)return d===6;
-    return pc.progress+d<=56;
+    if(pc.progress===-1)return d===6 && !pathBlocked(p,-1,6);
+    if(pc.progress+d>56)return false;
+    return !pathBlocked(p,pc.progress,d);
   });
+}
+// true if all of player p's pieces are at home or finished, with at least one still at home
+function allInYardOrGoal(p){
+  const mine=pieces.filter(q=>q.p===p);
+  if(!mine.length)return false;
+  const anyHome=mine.some(q=>q.progress===-1);
+  const allEdge=mine.every(q=>q.progress===-1||q.progress===56);
+  return anyHome&&allEdge;
 }
 
 function setActiveCard(){
@@ -727,13 +847,14 @@ function startGame(m){
   }
   renderPositions();
   log(`战斗开始! ${tag(0)} 先手 🦑`);
-  cur=0;winner=-1;
+  cur=0;winner=-1;sixStreak=0;
   beginTurn();
   tone(523,.15,'triangle',.12);tone(784,.2,'triangle',.12,.1);
 }
 
 function beginTurn(){
   if(winner>=0)return;
+  rollAttempts=0;
   phase='awaitRoll';
   setActiveCard();
   drawDiceFace(0);
@@ -763,6 +884,8 @@ async function applyRoll(seat,d){
   if(phase!=='awaitRoll'&&phase!=='sentRoll')return;
   phase='rolling';
   dice=Math.min(6,Math.max(1,d|0));
+  rollAttempts++;
+  sixStreak = (dice===6) ? sixStreak+1 : 0;
   $('#dice').classList.remove('disabled');
   $('#dice').classList.add('rolling');
   $('#diceHint').textContent='掷骰中…';
@@ -777,9 +900,46 @@ async function applyRoll(seat,d){
   if(dice===6)tone(660,.18,'triangle',.14);
   log(`${tag(cur)} 掷出了 <b>${dice}</b>${dice===6?' ✨':''}`);
 
+  // triple-6: turn is void, no move
+  if(sixStreak>=3){
+    log(`${tag(cur)} 连掷三个 6,乐极生悲!本回合作废 💦`);
+    sfx.denied();
+    await sleep(1100);
+    nextTurn(false);
+    return;
+  }
+
   const mv=movablePieces(cur,dice);
   lastMovables=mv;
   if(mv.length===0){
+    // opening boost: all pieces stuck at home (or already finished), up to 3 attempts total
+    const canRetry = allInYardOrGoal(cur) && rollAttempts<3;
+    if(canRetry){
+      const left=3-rollAttempts;
+      $('#diceHint').textContent=`还没出门,还可再掷 ${left} 次`;
+      sfx.denied();
+      await sleep(700);
+      phase='awaitRoll';
+      const mine=cur===mySeat;
+      $('#dice').classList.toggle('disabled',!mine);
+      if(mine){
+        $('#diceHint').textContent=`点击骰子再掷! (剩 ${left} 次)`;
+      }else if(seatIsCpu(cur)&&isHost()){
+        $('#diceHint').textContent='CPU 再掷…';
+        setTimeout(()=>{
+          if(phase==='awaitRoll'&&seatIsCpu(cur)&&isHost())
+            netSend({t:'roll',seat:cur,dice:1+Math.floor(Math.random()*6)});
+        },600);
+      }else{
+        $('#diceHint').textContent=`等待 ${seatLabel(cur)} 再掷…`;
+      }
+      // if it's a disconnected human seat, host takes over
+      if(!seatIsCpu(cur)&&!mine){
+        // seat is a human that's still connected — no action needed
+      }
+      // handle host-driven disconnected seat: seatNames[cur] will be null then, covered above
+      return;
+    }
     $('#diceHint').textContent='没有可动的小鱿…';
     sfx.denied();
     await sleep(1000);
@@ -813,12 +973,29 @@ function aiPick(mv){
     if(pc.progress===-1)s+=55;
     if(np<=50){
       const idx=(START[pc.p]+np)%52;
-      const victims=occupantsAt(idx).filter(q=>q.p!==pc.p);
-      if(victims.length&&!SAFE.has(idx))s+=90+victims.length*10;
+      // capture value (respects own-ink shield + victim blockade)
+      const bl=blockadeAt(idx);
+      const rawV=occupantsAt(idx).filter(q=>q.p!==pc.p);
+      const victimP=rawV.length?rawV[0].p:-1;
+      const canCapture = rawV.length && !SAFE.has(idx)
+        && !(turf[idx]===victimP)
+        && !(bl===victimP);
+      if(canCapture) s+=90+rawV.length*10;
       if(SAFE.has(idx))s+=18;
+      if(turf[idx]===pc.p)s+=14;                // safety: own ink
+      if(turf[idx]>=0 && turf[idx]!==pc.p && dice===6) s-=22;  // wastes the 6 bonus
+      // forming a blockade
+      if(occupantsAt(idx).some(q=>q.p===pc.p && q!==pc)) s+=20;
+      // flight cell
+      if(np===FLIGHT_FROM){
+        const destIdx=(START[pc.p]+FLIGHT_TO)%52;
+        const dbl=blockadeAt(destIdx);
+        if(dbl<0||dbl===pc.p) s+=60;
+      }
+      // threat from behind
       for(let b=1;b<=6;b++){
         const bi=(idx-b+52)%52;
-        if(occupantsAt(bi).some(q=>q.p!==pc.p))s-=8;
+        if(occupantsAt(bi).some(q=>q.p!==pc.p) && turf[idx]!==pc.p && !SAFE.has(idx))s-=8;
       }
     }
     s+=np*.6;
@@ -833,6 +1010,54 @@ function onPieceClick(pc){
   phase='sentMove';
   pieces.forEach(q=>q.node&&q.node.classList.remove('movable'));
   netSend({t:'move',p:pc.p,i:pc.i});
+}
+
+// resolve landing on `idx` for piece pc (already at that cell): captures + paints turf,
+// returns {captured, wasEnemyInk} — wasEnemyInk = turf owner was another player at time of landing.
+async function resolveLanding(pc){
+  const idx=trackIdx(pc);
+  let captured=false;
+  const preInk=turf[idx];                              // capture BEFORE we might paint it
+  const wasEnemyInk = preInk>=0 && preInk!==pc.p;
+  const wasOwnInk   = preInk===pc.p;
+  if(pc.progress<=50){
+    if(!SAFE.has(idx)){
+      const bl=blockadeAt(idx);
+      const raw=occupantsAt(idx).filter(q=>q.p!==pc.p);
+      // victims are opponents on this cell excluding pc; blockade of any color already means we can't be here
+      // if blockade is enemy's (>=0 && !==pc.p) — pathBlocked prevented us landing, so we won't be here
+      // if blockade is our own — no victims to worry about (all same color)
+      // so only real case: 1 lone enemy piece
+      let victims=raw;
+      // filter: own-ink protection or a same-color blockade (bl>=0 with 2+ of same color, all our own if bl===pc.p)
+      // per victim: victims currently sit on cell idx; check if this cell is their own ink (turf===victim.p) — but each victim has same idx, same turf; so all victims share the same protection status
+      if(victims.length){
+        // is the whole cell "victim-owned ink"? victims all share ownership pv; if turf[idx]===pv, protect
+        const pv=victims[0].p;
+        if(preInk===pv || victims.every(v=>v.p===pv) && bl===pv){
+          // ink protection or victim blockade → no capture
+          if(preInk===pv) log(`${tag(pv)} 站在自己的墨里,${tag(pc.p)} 无从下嘴!`);
+          else if(bl===pv) log(`${tag(pv)} 的路障挡住了 ${tag(pc.p)} 💠`);
+          victims=[];
+        }
+      }
+      if(victims.length){
+        const [x,y]=px(TRACK[idx]);
+        splatBurst(x,y,COLORS[pc.p],true);
+        sfx.splat();
+        for(const v of victims){
+          v.progress=-1;
+          log(`${tag(pc.p)} 把 ${tag(v.p)} 喷回了老家! 💥`);
+        }
+        await sleep(250);
+        renderPositions();
+        updateBlockadeVisuals();
+        captured=true;
+      }
+    }
+    paintTurf(idx,pc.p);
+  }
+  return {captured, wasEnemyInk, wasOwnInk};
 }
 
 async function applyMove(p,i){
@@ -855,35 +1080,45 @@ async function applyMove(p,i){
     await sleep(300);
     log(`${tag(cur)} 的小鱿出门啦!`);
   }else{
+    // walk animation — paint intermediate cells but NOT the final one (resolveLanding handles the final cell + captures the pre-ink state)
     for(let s=0;s<dice;s++){
       pc.progress++;
       pc.node.classList.remove('hop');pc.node.getBBox();pc.node.classList.add('hop');
       sfx.hop(s);
-      if(pc.progress<=50)paintTurf(trackIdx(pc),pc.p);
+      if(pc.progress<=50 && s<dice-1) paintTurf(trackIdx(pc),pc.p);
       renderPositions();
       await sleep(150);
     }
     pc.node.classList.remove('hop');
   }
 
-  let extra=(dice===6);
-  if(pc.progress<=50){
-    const idx=trackIdx(pc);
-    if(!SAFE.has(idx)){
-      const victims=occupantsAt(idx).filter(q=>q.p!==pc.p);
-      if(victims.length){
-        const [x,y]=px(TRACK[idx]);
-        splatBurst(x,y,COLORS[pc.p],true);
-        sfx.splat();
-        for(const v of victims){
-          v.progress=-1;
-          log(`${tag(pc.p)} 把 ${tag(v.p)} 喷回了老家! 💥`);
-        }
-        await sleep(250);
-        renderPositions();
-        extra=true;
-      }
+  // resolve at initial landing cell (captures + paints turf, records pre-existing ink)
+  let landing = (pc.progress>=0 && pc.progress<=50) ? await resolveLanding(pc) : {captured:false,wasEnemyInk:false,wasOwnInk:false};
+
+  // ✈ flight shortcut: own piece exactly on own flight cell → fly to destination
+  let flew=false, flightLanding=null;
+  if(pc.progress===FLIGHT_FROM){
+    const destIdx=(START[pc.p]+FLIGHT_TO)%52;
+    const destBlock=blockadeAt(destIdx);
+    if(destBlock>=0 && destBlock!==pc.p){
+      log(`${tag(pc.p)} 想飞,但目标点被路障堵住了 🚧`);
+    }else{
+      await sleep(150);
+      log(`${tag(pc.p)} 起飞! ✈`);
+      sfx.whoosh();
+      await flyAnim(pc, FLIGHT_TO);
+      pc.progress=FLIGHT_TO;
+      renderPositions();
+      flew=true;
+      flightLanding = await resolveLanding(pc);
     }
+  }
+
+  // extra roll: rolled 6 AND landing wasn't onto enemy ink at time of arrival; OR captured; OR reached goal
+  const finalLanding = flightLanding || landing;
+  let extra = (dice===6 && !finalLanding.wasEnemyInk) || landing.captured || (flightLanding&&flightLanding.captured);
+  if(dice===6 && finalLanding.wasEnemyInk){
+    log(`${tag(pc.p)} 踩进了敌方墨,失去再掷机会 🐾`);
   }
 
   if(pc.progress===56){
@@ -898,13 +1133,51 @@ async function applyMove(p,i){
     extra=true;
   }
 
+  // blockade visual: refresh ring for stacked pieces
+  updateBlockadeVisuals();
+
   await sleep(200);
   nextTurn(extra);
 }
 
+async function flyAnim(pc, targetProgress){
+  const destIdx=(START[pc.p]+targetProgress)%52;
+  const [tx,ty]=px(TRACK[destIdx]);
+  const [sx,sy]=pieceCellPos(pc);
+  pc.node.classList.add('flying');
+  const steps=14;
+  for(let s=1;s<=steps;s++){
+    const t=s/steps;
+    const x=sx+(tx-sx)*t;
+    const y=sy+(ty-sy)*t - Math.sin(t*Math.PI)*22;   // arc
+    pc.node.setAttribute('transform',`translate(${x},${y}) scale(1)`);
+    await sleep(35);
+  }
+  pc.node.classList.remove('flying');
+}
+
+function updateBlockadeVisuals(){
+  // pieces already got .ring from CSS; toggle a 'blockade' class on pieces in a same-color stack
+  const byCell={};
+  for(const pc of pieces){
+    if(pc.progress<0||pc.progress>50)continue;
+    const k=trackIdx(pc);
+    (byCell[k]=byCell[k]||[]).push(pc);
+  }
+  for(const pc of pieces){ pc.node && pc.node.classList.remove('blockade'); }
+  for(const k in byCell){
+    const arr=byCell[k];
+    if(arr.length<2)continue;
+    const first=arr[0].p;
+    if(arr.every(q=>q.p===first)){
+      arr.forEach(q=>q.node&&q.node.classList.add('blockade'));
+    }
+  }
+}
+
 function nextTurn(extra){
   if(winner>=0)return;
-  if(!extra)cur=(cur+1)%4;
+  if(!extra){cur=(cur+1)%4; sixStreak=0;}
   else log(`${tag(cur)} 再掷一次!`);
   beginTurn();
 }
