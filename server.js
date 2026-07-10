@@ -132,6 +132,7 @@ wss.on('connection', ws => {
   const c = { id: nextId++, clientId: null, name: '玩家' + nextId, seat: -1, joined: false };
   clients.set(ws, c);
   send(ws, { t: 'welcome', id: c.id, phase, url: `http://${lanIP()}:${PORT}`, reconnectWindowMs: RECONNECT_WINDOW_MS });
+  send(ws, lobbySnapshot());   // so the client can render empty seat slots before anyone joins
 
   ws.on('message', raw => {
     let m; try { m = JSON.parse(raw); } catch { return; }
