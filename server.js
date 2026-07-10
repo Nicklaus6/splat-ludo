@@ -56,10 +56,11 @@ function lobbySnapshot() {
     waiting: [...clients.values()].filter(c => c.seat === -1).map(c => c.name),
   };
 }
+// give free seats to already-joined-but-waiting clients (in join order).
+// only kicks in when a seat frees up mid-lobby.
 function seatWaiting() {
-  // give free seats to waiting clients in join order
   for (const [ws, c] of clients) {
-    if (c.seat !== -1) continue;
+    if (!c.joined || c.seat !== -1) continue;
     const free = seats.indexOf(null);
     if (free === -1) break;
     seats[free] = c.id;
@@ -67,9 +68,17 @@ function seatWaiting() {
     send(ws, { t: 'seated', seat: free });
   }
 }
+// pick a seat for a client trying to join; prefers `preferred` if it's a free 0-3.
+// returns final seat (0-3) or -1 if the room is full.
+function assignSeat(preferred) {
+  if (Number.isInteger(preferred) && preferred >= 0 && preferred < 4 && seats[preferred] === null) {
+    return preferred;
+  }
+  return seats.indexOf(null); // -1 if all taken
+}
 
 wss.on('connection', ws => {
-  const c = { id: nextId++, name: '玩家' + nextId, seat: -1 };
+  const c = { id: nextId++, name: '玩家' + nextId, seat: -1, joined: false };
   clients.set(ws, c);
   send(ws, { t: 'welcome', id: c.id, phase, url: `http://${lanIP()}:${PORT}` });
 
@@ -78,7 +87,28 @@ wss.on('connection', ws => {
 
     if (m.t === 'join') {
       c.name = String(m.name || '').slice(0, 12) || c.name;
-      if (phase === 'lobby') { seatWaiting(); }
+      c.joined = true;
+      if (phase === 'lobby' && c.seat === -1) {
+        const s = assignSeat(m.seat);
+        if (s >= 0) {
+          seats[s] = c.id;
+          c.seat = s;
+          send(ws, { t: 'seated', seat: s, preferred: m.seat });
+        }
+      }
+      broadcast(lobbySnapshot());
+      return;
+    }
+    // change color mid-lobby (host may want a specific color, or someone wants to swap)
+    if (m.t === 'pickSeat' && phase === 'lobby' && c.joined) {
+      const want = m.seat;
+      if (!Number.isInteger(want) || want < 0 || want >= 4) return;
+      if (seats[want] !== null) return;               // taken, silently ignore
+      if (c.seat >= 0) seats[c.seat] = null;          // free current
+      seats[want] = c.id;
+      c.seat = want;
+      send(ws, { t: 'seated', seat: want });
+      seatWaiting();
       broadcast(lobbySnapshot());
       return;
     }

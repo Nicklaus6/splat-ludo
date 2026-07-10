@@ -155,10 +155,19 @@ main{display:flex;gap:22px;align-items:flex-start;justify-content:center;flex-wr
   border-radius:16px;padding:12px;font-weight:800;font-size:16px;
   background:rgba(255,255,255,.06);border:2.5px solid var(--sc);
   display:flex;flex-direction:column;gap:3px;align-items:center;
+  transition:transform .15s, box-shadow .15s, background .2s;
+  position:relative;
 }
+.seat.clickable{cursor:pointer}
+.seat.clickable:hover{transform:scale(1.04) rotate(-1deg);box-shadow:0 0 0 3px var(--sc),0 6px 18px rgba(0,0,0,.35)}
+.seat.mine{box-shadow:0 0 0 3px #fff, 0 6px 18px rgba(0,0,0,.4)}
+.seat.locked{opacity:.85}
 .seat .who{font-size:13px;font-weight:700;padding:2px 12px;border-radius:9px;background:var(--sc);color:#181230;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .seat.cpu .who{background:rgba(255,255,255,.14);color:var(--paper)}
 .seat small{opacity:.55;font-size:11px;font-weight:600}
+.seat .lockicon{position:absolute;top:6px;right:8px;font-size:12px;opacity:.75}
+#nameInput.shake{animation:shakeX .35s}
+@keyframes shakeX{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
 .bigbtn{
   font-family:var(--font-disp);font-size:24px;letter-spacing:2px;color:#181230;
   background:var(--c1);border:none;border-radius:18px;padding:14px 44px;cursor:pointer;
@@ -234,10 +243,9 @@ main{display:flex;gap:22px;align-items:flex-start;justify-content:center;flex-wr
 <div class="overlay" id="setupOverlay">
   <div class="panel">
     <h1><span class="a">SPLAT</span> <span class="b">LUDO!</span></h1>
-    <div class="sub" id="lobbySub">输入昵称加入战斗 · 同 WiFi 好友打开下方地址即可加入</div>
+    <div class="sub" id="lobbySub">输入昵称,点击下方色块抢座 · 同 WiFi 好友打开下方地址即可加入</div>
     <div class="namer" id="namer">
       <input id="nameInput" maxlength="12" placeholder="你的昵称">
-      <button class="joinbtn" id="joinBtn">加入!</button>
     </div>
     <div class="seats" id="seats"></div>
     <button class="bigbtn" id="startBtn" disabled>开 战 !</button>
@@ -679,6 +687,9 @@ function handleNet(m){
       }
       break;
     case 'seated':
+      if(Number.isInteger(m.preferred) && m.preferred!==m.seat){
+        toast(`${SQUADS[m.preferred]}被抢先了,给你分到 ${SQUADS[m.seat]}!`);
+      }
       mySeat=m.seat;
       break;
     case 'lobby':
@@ -701,6 +712,13 @@ function handleNet(m){
 }
 
 /* ================= lobby UI ================= */
+function toast(msg){
+  const t=document.createElement('div');
+  t.textContent=msg;
+  t.style.cssText='position:fixed;top:70px;left:50%;transform:translateX(-50%);background:#241c4a;color:var(--paper);padding:10px 18px;border-radius:12px;font-weight:800;box-shadow:0 8px 22px rgba(0,0,0,.5);z-index:200;border:2px solid rgba(255,255,255,.15);animation:panelIn .35s';
+  document.body.appendChild(t);
+  setTimeout(()=>{t.style.transition='opacity .35s';t.style.opacity='0';setTimeout(()=>t.remove(),380);},1900);
+}
 function renderLobby(m){
   hostSeat=m.hostSeat;
   seatNames=m.seats;
@@ -708,16 +726,22 @@ function renderLobby(m){
   seatsEl.innerHTML='';
   for(let p=0;p<4;p++){
     const d=document.createElement('div');
-    const cpu=m.seats[p]===null;
-    d.className='seat'+(cpu?' cpu':'');
-    d.style.setProperty('--sc',COLORS[p]);
-    const label=cpu?'CPU':m.seats[p].name;
+    const taken=m.seats[p]!==null;
     const isMe=p===mySeat;
+    const clickable = !taken && (!joined || (joined && mySeat>=0));  // pre-join抢, 已入座可换
+    d.className='seat'+(taken?'':' cpu')+(clickable?' clickable':'')+(isMe?' mine':'')+(taken&&!isMe?' locked':'');
+    d.style.setProperty('--sc',COLORS[p]);
+    const label=taken ? (m.seats[p].name+(isMe?' (你)':'')) : '空 · 点我抢';
     d.innerHTML=`<span style="color:${COLORS[p]}">${SQUADS[p]}</span>
-      <span class="who">${label}${isMe?' (你)':''}</span>
-      <small>${p===m.hostSeat?'👑 房主':'&nbsp;'}</small>`;
+      <span class="who">${label}</span>
+      <small>${p===m.hostSeat?'👑 房主':'&nbsp;'}</small>
+      ${taken&&!isMe?'<span class="lockicon">🔒</span>':''}`;
+    if(clickable){
+      d.onclick=()=>pickSeat(p);
+    }
     seatsEl.appendChild(d);
   }
+  $('#namer').style.display = joined ? 'none' : '';
   const btn=$('#startBtn');
   if(joined&&isHost()){
     btn.disabled=false;
@@ -725,21 +749,35 @@ function renderLobby(m){
   }else if(joined){
     btn.disabled=true;
     btn.textContent='等待房主开战…';
+  }else{
+    btn.disabled=true;
+    btn.textContent='先抢座才能开战';
   }
   $('#waitingNames').textContent=m.waiting.length?('观战等待中: '+m.waiting.join('、')):'';
 }
 
-$('#joinBtn').onclick=doJoin;
-$('#nameInput').addEventListener('keydown',e=>{if(e.key==='Enter')doJoin();});
-function doJoin(){
+function pickSeat(p){
   const name=$('#nameInput').value.trim();
-  if(!name){$('#nameInput').focus();return;}
-  ac();
-  localStorage.setItem('splatName',name);
-  joined=true;
-  netSend({t:'join',name});
-  $('#namer').style.display='none';
-  tone(523,.12,'triangle',.12);
+  if(!joined){
+    if(!name){
+      const inp=$('#nameInput');
+      inp.classList.remove('shake');void inp.offsetWidth;inp.classList.add('shake');
+      inp.focus();
+      return;
+    }
+    ac();
+    localStorage.setItem('splatName',name);
+    localStorage.setItem('splatColor',String(p));
+    joined=true;
+    netSend({t:'join',name,seat:p});
+    tone(523,.12,'triangle',.12);
+  }else{
+    // already joined, request color swap
+    if(p===mySeat)return;
+    localStorage.setItem('splatColor',String(p));
+    netSend({t:'pickSeat',seat:p});
+    tone(660,.1,'triangle',.1);
+  }
 }
 $('#startBtn').onclick=()=>{ if(isHost())netSend({t:'start'}); };
 
