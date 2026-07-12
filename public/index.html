@@ -269,13 +269,18 @@ main{display:flex;gap:22px;align-items:flex-start;justify-content:center;flex-wr
       </ul>
       <h3>🛡️ 安全区</h3>
       <ul>
-        <li>★ 星格 与 <b>各家起点(➤)</b> 均为安全区,上面的小鱿无法被喷。</li>
+        <li><b>★ 星格</b>:所有人的安全区,上面的小鱿无法被喷。</li>
+        <li><b>各家起点(➤)</b>:<b>只对自家安全</b>——别人的棋子站上来照样可以被喷!</li>
       </ul>
       <h3>🎨 地盘系统</h3>
       <ul>
         <li>走过的格子会染上你的墨,侧栏实时显示占地百分比。</li>
-        <li><b>己方墨保护</b>:站在自己颜色的墨上,无法被喷。</li>
+        <li><b>墨盾一次性</b>:站在自己颜色的墨上被喷时,墨盾会 <b>碎掉</b> 抵挡这一次攻击,格子回到无色 — 下次就不再保护了。</li>
         <li><b>敌方墨减速</b>:走到停在敌方颜色的墨上,即使掷了 6 也 <b>不再掷</b>(靠喷子/回家获得的再掷仍然有效)。</li>
+      </ul>
+      <h3>💥 吃子奖励</h3>
+      <ul>
+        <li>把对手喷回老家 → 立即 <b>再掷一次</b>,并且 <b>前冲 3 格</b> 巩固战果(遇路障或到家会提前停)。</li>
       </ul>
       <h3>🚀 起手连掷</h3>
       <ul>
@@ -320,7 +325,12 @@ const COLORS  = ['#ff3d8c','#a8e600','#00cdeb','#ff8c1a'];
 const COLORSD = ['#c9226a','#7ab400','#00a2c2','#d96b00'];
 const SQUADS  = ['樱花鱿','青柠鱿','苏打鱿','橘子鱿'];
 const START   = [1,14,27,40];
-const SAFE    = new Set([1,14,27,40,9,22,35,48]);
+// only the 4 ★ squares are universally safe. Each home's start cell (1/14/27/40) is a
+// safe HAVEN only for its owner — enemies can still be captured there.
+const SAFE    = new Set([9,22,35,48]);
+// is the given track cell a safe haven for a piece owned by player `p`?
+// true if it's a ★ cell, OR it's p's own start cell.
+function isSafeFor(idx, p){ return SAFE.has(idx) || idx===START[p]; }
 // flight shortcut: player p's own piece landing exactly on progress==FLIGHT_FROM
 // flies to progress==FLIGHT_TO. Track cells: from=(START[p]+20)%52 → 21/34/47/8;
 // to=(START[p]+32)%52 → 33/46/7/20. None collide with SAFE (which is 1,14,27,40,9,22,35,48).
@@ -484,8 +494,8 @@ function drawBoard(){
       const t=el('text',{x:x+CS/2,y:y+CS/2+6,'text-anchor':'middle','font-size':15,fill:'rgba(0,0,0,.5)','font-weight':800},layers.marks);
       t.textContent='➤';
       t.setAttribute('transform',`rotate(${[0,90,180,270][owner]} ${x+CS/2} ${y+CS/2})`);
-      // small ★ tag so players see start cells are also safe
-      el('text',{x:x+CS-8,y:y+11,'text-anchor':'middle','font-size':11,fill:'rgba(0,0,0,.55)','font-weight':800},layers.marks).textContent='★';
+      // small home-shield glyph: safe only for the owner
+      el('text',{x:x+CS-8,y:y+11,'text-anchor':'middle','font-size':10,fill:COLORSD[owner],'font-weight':800},layers.marks).textContent='🏠';
     }
   });
 
@@ -1070,15 +1080,15 @@ function aiPick(mv){
     if(pc.progress===-1)s+=55;
     if(np<=50){
       const idx=(START[pc.p]+np)%52;
-      // capture value (respects own-ink shield + victim blockade)
+      // capture value (respects own-ink shield + victim blockade + haven rules)
       const bl=blockadeAt(idx);
       const rawV=occupantsAt(idx).filter(q=>q.p!==pc.p);
       const victimP=rawV.length?rawV[0].p:-1;
-      const canCapture = rawV.length && !SAFE.has(idx)
+      const canCapture = rawV.length && !isSafeFor(idx, victimP)
         && !(turf[idx]===victimP)
         && !(bl===victimP);
-      if(canCapture) s+=90+rawV.length*10;
-      if(SAFE.has(idx))s+=18;
+      if(canCapture) s+=120+rawV.length*15;   // capture now includes a 3-cell surge → weight it higher
+      if(isSafeFor(idx, pc.p))s+=18;
       if(turf[idx]===pc.p)s+=14;                // safety: own ink
       if(turf[idx]>=0 && turf[idx]!==pc.p && dice===6) s-=22;  // wastes the 6 bonus
       // forming a blockade
@@ -1092,7 +1102,7 @@ function aiPick(mv){
       // threat from behind
       for(let b=1;b<=6;b++){
         const bi=(idx-b+52)%52;
-        if(occupantsAt(bi).some(q=>q.p!==pc.p) && turf[idx]!==pc.p && !SAFE.has(idx))s-=8;
+        if(occupantsAt(bi).some(q=>q.p!==pc.p) && turf[idx]!==pc.p && !isSafeFor(idx, pc.p))s-=8;
       }
     }
     s+=np*.6;
@@ -1111,38 +1121,51 @@ function onPieceClick(pc){
 
 // resolve landing on `idx` for piece pc (already at that cell): captures + paints turf,
 // returns {captured, wasEnemyInk} — wasEnemyInk = turf owner was another player at time of landing.
-async function resolveLanding(pc){
+// how many extra track cells a mover surges forward after capturing (per victim, capped by dice extra)
+const CAPTURE_SURGE = 3;
+
+async function resolveLanding(pc, {allowSurge=true}={}){
   const idx=trackIdx(pc);
   let captured=false;
   const preInk=turf[idx];                              // capture BEFORE we might paint it
   const wasEnemyInk = preInk>=0 && preInk!==pc.p;
   const wasOwnInk   = preInk===pc.p;
   if(pc.progress<=50){
-    if(!SAFE.has(idx)){
-      const bl=blockadeAt(idx);
-      const raw=occupantsAt(idx).filter(q=>q.p!==pc.p);
-      // victims are opponents on this cell excluding pc; blockade of any color already means we can't be here
-      // if blockade is enemy's (>=0 && !==pc.p) — pathBlocked prevented us landing, so we won't be here
-      // if blockade is our own — no victims to worry about (all same color)
-      // so only real case: 1 lone enemy piece
-      let victims=raw;
-      // filter: own-ink protection or a same-color blockade (bl>=0 with 2+ of same color, all our own if bl===pc.p)
-      // per victim: victims currently sit on cell idx; check if this cell is their own ink (turf===victim.p) — but each victim has same idx, same turf; so all victims share the same protection status
-      if(victims.length){
-        // is the whole cell "victim-owned ink"? victims all share ownership pv; if turf[idx]===pv, protect
-        const pv=victims[0].p;
-        if(preInk===pv || victims.every(v=>v.p===pv) && bl===pv){
-          // ink protection or victim blockade → no capture
-          if(preInk===pv) log(`${tag(pv)} 站在自己的墨里,${tag(pc.p)} 无从下嘴!`);
-          else if(bl===pv) log(`${tag(pv)} 的路障挡住了 ${tag(pc.p)} 💠`);
-          victims=[];
+    const bl=blockadeAt(idx);
+    const opps=occupantsAt(idx).filter(q=>q.p!==pc.p);
+    if(opps.length){
+      // group victims by owner; each owner-group is protected as a unit
+      // (any victim on this cell shares the same idx, so ink/blockade/haven flags are per-group)
+      const byOwner={};
+      for(const v of opps){(byOwner[v.p]=byOwner[v.p]||[]).push(v);}
+      const eaten=[];
+      for(const ownerStr in byOwner){
+        const ownerP=+ownerStr;
+        const vs=byOwner[ownerStr];
+        if(isSafeFor(idx, ownerP)){
+          log(`${tag(ownerP)} 站在安全格上, ${tag(pc.p)} 咬不着 ★`);
+          continue;
         }
+        if(bl===ownerP){
+          log(`${tag(ownerP)} 的路障挡住了 ${tag(pc.p)} 💠`);
+          continue;
+        }
+        if(preInk===ownerP){
+          // ink shield — consumed on first hit
+          turf[idx]=-1;
+          if(turfNodes[idx]){turfNodes[idx].remove();turfNodes[idx]=null;}
+          updateTurfBars();
+          log(`${tag(ownerP)} 的墨盾被 ${tag(pc.p)} 打碎了! 🎨💥`);
+          continue;
+        }
+        // no protection → eat them
+        eaten.push(...vs);
       }
-      if(victims.length){
+      if(eaten.length){
         const [x,y]=px(TRACK[idx]);
         splatBurst(x,y,COLORS[pc.p],true);
         sfx.splat();
-        for(const v of victims){
+        for(const v of eaten){
           v.progress=-1;
           log(`${tag(pc.p)} 把 ${tag(v.p)} 喷回了老家! 💥`);
         }
@@ -1153,8 +1176,41 @@ async function resolveLanding(pc){
       }
     }
     paintTurf(idx,pc.p);
+
+    // capture surge: reward the eater by pushing forward a few cells (stops at goal or a blockade)
+    if(captured && allowSurge){
+      const surged = await captureSurge(pc, CAPTURE_SURGE);
+      if(surged>0){
+        log(`${tag(pc.p)} 吞噬能量, 前冲 ${surged} 格 🚀`);
+        // resolve landing at the new cell too (but no further surge → prevents chain reactions)
+        if(pc.progress<=50) await resolveLanding(pc, {allowSurge:false});
+      }
+    }
   }
   return {captured, wasEnemyInk, wasOwnInk};
+}
+
+// step the mover forward up to n track cells; stops early on goal, enemy blockade, or entering home column
+async function captureSurge(pc, n){
+  let steps=0;
+  for(let k=0;k<n;k++){
+    const nextProg=pc.progress+1;
+    if(nextProg>56)break;
+    if(nextProg<=50){
+      const idx=(START[pc.p]+nextProg)%52;
+      const b=blockadeAt(idx);
+      if(b>=0 && b!==pc.p) break;   // enemy blockade halts the surge
+    }
+    pc.progress=nextProg;
+    pc.node.classList.remove('hop');pc.node.getBBox();pc.node.classList.add('hop');
+    sfx.hop(k);
+    if(pc.progress<=50) paintTurf(trackIdx(pc),pc.p);
+    renderPositions();
+    steps++;
+    await sleep(130);
+  }
+  pc.node.classList.remove('hop');
+  return steps;
 }
 
 async function applyMove(p,i){
