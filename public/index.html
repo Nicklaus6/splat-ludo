@@ -219,6 +219,8 @@ main{display:flex;gap:22px;align-items:flex-start;justify-content:center;flex-wr
     <span id="netTag">连接中…</span>
     <button id="muteBtn" title="声音开关">🔊 音效</button>
     <button id="rulesBtn" title="查看规则">📖 规则</button>
+    <span id="whoTag" style="font-size:13px;font-weight:700;opacity:.75;margin-left:4px"></span>
+    <button id="logoutBtn" title="退出登录" style="background:transparent;border:2px solid rgba(255,255,255,.15);color:var(--paper);border-radius:14px;padding:6px 12px;font-family:inherit;font-weight:700;font-size:13px;cursor:pointer">🚪 退出</button>
   </header>
 
   <main>
@@ -427,6 +429,10 @@ const sfx={
   denied(){tone(140,.2,'sawtooth',.08)}
 };
 $('#muteBtn').onclick=()=>{muted=!muted;$('#muteBtn').textContent=muted?'🔇 静音':'🔊 音效';};
+$('#logoutBtn').onclick=async()=>{
+  try{ await fetch('/api/logout',{method:'POST'}); }catch{}
+  location.href='/login';
+};
 $('#rulesBtn').onclick=()=>{$('#rulesOverlay').classList.remove('hidden');};
 $('#rulesCloseBtn').onclick=()=>{$('#rulesOverlay').classList.add('hidden');};
 $('#rulesOverlay').addEventListener('click',e=>{if(e.target.id==='rulesOverlay')$('#rulesOverlay').classList.add('hidden');});
@@ -657,6 +663,7 @@ function inkConfetti(){
 
 /* ================= net ================= */
 let ws=null, mySeat=-1, hostSeat=-1, seatNames=[null,null,null,null], joined=false;
+let currentUser=null;      // {id, email, display_name} once welcome msg lands
 let pendingSeats=new Set();          // seats currently in "waiting-for-reconnect" state; host plays them as CPU
 let lastAppliedSeq=0;                 // seq of last relay message we've applied (host's own outbound counts once echoed back)
 let pendingBuffer=[];                 // relay messages queued while waiting for snapshot after reconnect
@@ -704,16 +711,24 @@ function connect(){
 
 function handleNet(m){
   switch(m.t){
+    case 'authRequired':
+      location.href='/login';
+      return;
     case 'welcome':
       if(m.url)$('#lanUrl').innerHTML=`局域网地址: <b>${m.url}</b>`;
+      if(m.user){
+        currentUser=m.user;
+        $('#whoTag').textContent='🦑 '+m.user.display_name;
+        $('#nameInput').value=m.user.display_name;
+        localStorage.setItem('splatName',m.user.display_name);
+      }
       if(m.phase==='playing'&&!joined){
         $('#lobbySub').textContent='尝试接回上一局…';
         $('#namer').style.display='none';
         $('#startBtn').style.display='none';
-        const savedName=localStorage.getItem('splatName')||'';
+        const savedName=(currentUser&&currentUser.display_name)||localStorage.getItem('splatName')||'';
         netSend({t:'join',name:savedName,clientId:getClientId()});
         joined=true;
-        // if we're not actually pending, we'll silently become a spectator; update the hint after a short delay
         setTimeout(()=>{
           if(mySeat<0) $('#lobbySub').textContent='一局游戏正在进行中,等本局结束后你会自动入座…';
         },600);

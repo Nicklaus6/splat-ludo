@@ -4,6 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { WebSocketServer } = require('ws');
+const db = require('./db');
+const auth = require('./auth');
 
 const PORT = process.env.PORT || 3000;
 const PUB = path.join(__dirname, 'public');
@@ -17,16 +19,121 @@ function lanIP() {
   return 'localhost';
 }
 
-const server = http.createServer((req, res) => {
-  let p = req.url.split('?')[0];
-  if (p === '/') p = '/index.html';
-  const file = path.join(PUB, path.normalize(p));
-  if (!file.startsWith(PUB)) { res.writeHead(403); return res.end(); }
+/* ---- http helpers ---- */
+function readJson(req, cb) {
+  let raw = '';
+  req.on('data', c => { raw += c; if (raw.length > 4096) req.destroy(); });
+  req.on('end', () => {
+    try { cb(null, JSON.parse(raw || '{}')); }
+    catch (e) { cb(e); }
+  });
+}
+function sendJson(res, status, obj, extraHeaders) {
+  const h = Object.assign({ 'Content-Type': 'application/json; charset=utf-8' }, extraHeaders || {});
+  res.writeHead(status, h);
+  res.end(JSON.stringify(obj));
+}
+function sessionCookie(token) {
+  const days = auth.SESSION_DAYS;
+  return `splat_session=${token}; Path=/; Max-Age=${days * 24 * 3600}; HttpOnly; SameSite=Lax`;
+}
+function clearCookie() {
+  return 'splat_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax';
+}
+async function currentUser(req) {
+  const token = auth.tokenFromCookieHeader(req.headers.cookie);
+  return await auth.sessionUser(token);
+}
+function serveStatic(res, file) {
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404); return res.end('not found'); }
     res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
     res.end(data);
   });
+}
+
+const server = http.createServer(async (req, res) => {
+  const url = new URL(req.url, `http://${req.headers.host || 'x'}`);
+  const p = url.pathname;
+
+  try {
+    // ---- auth API ----
+    if (p === '/api/register' && req.method === 'POST') {
+      return readJson(req, async (err, body) => {
+        if (err) return sendJson(res, 400, { error: 'bad_json' });
+        const { email, password, displayName } = body || {};
+        if (!email || !password || !displayName) return sendJson(res, 400, { error: '缺少字段' });
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return sendJson(res, 400, { error: '邮箱格式不对' });
+        if (password.length < 6) return sendJson(res, 400, { error: '密码至少 6 位' });
+        if (displayName.length < 1 || displayName.length > 12) return sendJson(res, 400, { error: '昵称 1-12 字' });
+        try {
+          const user = await auth.createUser(email, password, displayName);
+          const { token } = await auth.createSession(user.id);
+          return sendJson(res, 200, { ok: true, user }, { 'Set-Cookie': sessionCookie(token) });
+        } catch (e) {
+          if (e.code === '23505') return sendJson(res, 409, { error: '该邮箱已注册' });
+          console.error('register error', e);
+          return sendJson(res, 500, { error: 'server_error' });
+        }
+      });
+    }
+    if (p === '/api/login' && req.method === 'POST') {
+      return readJson(req, async (err, body) => {
+        if (err) return sendJson(res, 400, { error: 'bad_json' });
+        const { email, password } = body || {};
+        if (!email || !password) return sendJson(res, 400, { error: '缺少字段' });
+        const u = await auth.findUserByEmail(email);
+        if (!u || !auth.verifyPassword(password, u.password_hash)) {
+          return sendJson(res, 401, { error: '邮箱或密码错误' });
+        }
+        const { token } = await auth.createSession(u.id);
+        return sendJson(res, 200, {
+          ok: true,
+          user: { id: u.id, email: u.email, display_name: u.display_name }
+        }, { 'Set-Cookie': sessionCookie(token) });
+      });
+    }
+    if (p === '/api/logout' && req.method === 'POST') {
+      const token = auth.tokenFromCookieHeader(req.headers.cookie);
+      await auth.deleteSession(token);
+      return sendJson(res, 200, { ok: true }, { 'Set-Cookie': clearCookie() });
+    }
+    if (p === '/api/me' && req.method === 'GET') {
+      const u = await currentUser(req);
+      if (!u) return sendJson(res, 401, { error: 'not_logged_in' });
+      return sendJson(res, 200, { user: u });
+    }
+
+    // ---- pages ----
+    if (p === '/login' || p === '/register') {
+      // if already logged in, bounce to /
+      if (await currentUser(req)) {
+        res.writeHead(302, { Location: '/' });
+        return res.end();
+      }
+      return serveStatic(res, path.join(PUB, p.slice(1) + '.html'));
+    }
+
+    // root and game assets need auth
+    const gameOrRoot = (p === '/' || p === '/index.html');
+    if (gameOrRoot) {
+      if (!await currentUser(req)) {
+        res.writeHead(302, { Location: '/login' });
+        return res.end();
+      }
+      return serveStatic(res, path.join(PUB, 'index.html'));
+    }
+
+    // ---- static ----
+    let sp = p;
+    if (sp === '/') sp = '/index.html';
+    const file = path.join(PUB, path.normalize(sp));
+    if (!file.startsWith(PUB)) { res.writeHead(403); return res.end(); }
+    return serveStatic(res, file);
+  } catch (e) {
+    console.error('req error', e);
+    if (!res.headersSent) sendJson(res, 500, { error: 'server_error' });
+  }
 });
 
 /* ---- room state (single room) ---- */
@@ -134,17 +241,40 @@ function tryRestore(c, clientId) {
   return -1;
 }
 
-wss.on('connection', ws => {
-  const c = { id: nextId++, clientId: null, name: '玩家' + nextId, seat: -1, joined: false };
+wss.on('connection', async (ws, req) => {
+  // authenticate: reject sockets without a valid session cookie
+  const token = auth.tokenFromCookieHeader(req.headers.cookie);
+  let user = null;
+  try { user = await auth.sessionUser(token); } catch (e) { console.error('ws auth error', e); }
+  if (!user) {
+    send(ws, { t: 'authRequired' });
+    try { ws.close(4401, 'not authenticated'); } catch {}
+    return;
+  }
+  const c = {
+    id: nextId++,
+    userId: user.id,
+    clientId: 'user-' + user.id,           // stable per-account; ignored client-supplied id
+    name: user.display_name,
+    seat: -1,
+    joined: false,
+  };
   clients.set(ws, c);
-  send(ws, { t: 'welcome', id: c.id, phase, url: `http://${lanIP()}:${PORT}`, reconnectWindowMs: RECONNECT_WINDOW_MS });
-  send(ws, lobbySnapshot());   // so the client can render empty seat slots before anyone joins
+  send(ws, {
+    t: 'welcome',
+    id: c.id,
+    phase,
+    url: `http://${lanIP()}:${PORT}`,
+    reconnectWindowMs: RECONNECT_WINDOW_MS,
+    user: { id: user.id, email: user.email, display_name: user.display_name },
+  });
+  send(ws, lobbySnapshot());
 
   ws.on('message', raw => {
     let m; try { m = JSON.parse(raw); } catch { return; }
 
     if (m.t === 'join') {
-      c.clientId = String(m.clientId || '').slice(0, 64) || null;
+      // clientId is enforced by the server (user id), not trusted from client
       const wantName = String(m.name || '').slice(0, 12);
       c.name = wantName || c.name;
       c.joined = true;
@@ -254,10 +384,20 @@ wss.on('connection', ws => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log('');
-  console.log('  🦑 SPLAT LUDO 服务器已启动!');
-  console.log(`  本机游玩:   http://localhost:${PORT}`);
-  console.log(`  局域网加入: http://${lanIP()}:${PORT}`);
-  console.log('');
-});
+async function main() {
+  try {
+    await db.migrate();
+    console.log('  db migrations applied.');
+  } catch (e) {
+    console.error('db migrate failed', e);
+    process.exit(1);
+  }
+  server.listen(PORT, () => {
+    console.log('');
+    console.log('  🦑 SPLAT LUDO 服务器已启动!');
+    console.log(`  本机游玩:   http://localhost:${PORT}`);
+    console.log(`  局域网加入: http://${lanIP()}:${PORT}`);
+    console.log('');
+  });
+}
+main();

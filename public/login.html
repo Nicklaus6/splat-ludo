@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>登录 · SPLAT LUDO!</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Titan+One&family=Baloo+2:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#f4efe6;--c0:#ff3d8c;--c0d:#c9226a;--c1:#a8e600;--c1d:#7ab400;--c2:#00cdeb;--c2d:#00a2c2;}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;}
+body{
+  font-family:'Baloo 2','PingFang SC',sans-serif;
+  background:radial-gradient(1200px 800px at 80% -10%, #2a1f56 0%, transparent 60%), radial-gradient(900px 700px at -10% 110%, #251a4d 0%, transparent 55%), #16112b;
+  color:var(--paper);min-height:100%;display:flex;align-items:center;justify-content:center;padding:20px;
+}
+.panel{background:#241c4a;border-radius:26px;padding:40px 44px;max-width:460px;width:100%;border:3px solid rgba(255,255,255,.12);box-shadow:0 30px 80px rgba(0,0,0,.6);}
+h1{font-family:'Titan One',sans-serif;font-size:38px;text-align:center;margin-bottom:8px;letter-spacing:1px;}
+h1 .a{color:var(--c0)} h1 .b{color:var(--c2)}
+.sub{opacity:.7;text-align:center;font-weight:600;margin-bottom:24px;font-size:14.5px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:13px;font-weight:700;opacity:.75;margin-bottom:5px;letter-spacing:.3px}
+.field input{
+  width:100%;font-family:inherit;font-weight:700;font-size:16px;color:var(--paper);
+  background:rgba(0,0,0,.32);border:2.5px solid rgba(255,255,255,.15);border-radius:12px;
+  padding:11px 14px;outline:none;
+}
+.field input:focus{border-color:var(--c2)}
+.err{color:#ff9db9;font-size:13.5px;font-weight:700;min-height:20px;margin:8px 0 6px;text-align:center}
+.bigbtn{
+  width:100%;font-family:'Titan One',sans-serif;font-size:22px;letter-spacing:2px;color:#181230;
+  background:var(--c1);border:none;border-radius:16px;padding:13px;cursor:pointer;
+  box-shadow:0 5px 0 var(--c1d);transition:transform .15s;
+}
+.bigbtn:hover{transform:scale(1.04) rotate(-1deg)}
+.bigbtn:active{transform:translateY(3px);box-shadow:0 2px 0 var(--c1d)}
+.bigbtn:disabled{opacity:.5;cursor:default}
+.altline{text-align:center;margin-top:16px;font-size:13.5px;opacity:.75}
+.altline a{color:var(--c2);font-weight:800;text-decoration:none}
+.altline a:hover{text-decoration:underline}
+.bg-splat{position:fixed;pointer-events:none;opacity:.07;filter:blur(1px);z-index:0}
+</style>
+</head>
+<body>
+<svg class="bg-splat" style="top:-40px;left:-40px;width:340px;height:340px" viewBox="-60 -60 120 120"><path d="M-46,-8 Q-32,-46 -8,-40 Q22,-52 42,-24 Q52,10 30,32 Q0,54 -22,36 Q-52,20 -46,-8 Z" fill="#ff3d8c"/></svg>
+<svg class="bg-splat" style="bottom:-60px;right:-60px;width:400px;height:400px" viewBox="-60 -60 120 120"><path d="M-46,-8 Q-32,-46 -8,-40 Q22,-52 42,-24 Q52,10 30,32 Q0,54 -22,36 Q-52,20 -46,-8 Z" fill="#00cdeb"/></svg>
+
+<div class="panel">
+  <h1><span class="a">SPLAT</span> <span class="b">LUDO!</span></h1>
+  <div class="sub">登录来抢座开战 🦑</div>
+  <form id="f">
+    <div class="field"><label>邮箱</label><input name="email" type="email" autocomplete="email" required></div>
+    <div class="field"><label>密码</label><input name="password" type="password" autocomplete="current-password" required></div>
+    <div class="err" id="err">&nbsp;</div>
+    <button class="bigbtn" type="submit" id="btn">登 录!</button>
+  </form>
+  <div class="altline">还没账号? <a href="/register">去注册</a></div>
+</div>
+<script>
+const f=document.getElementById('f'), err=document.getElementById('err'), btn=document.getElementById('btn');
+f.onsubmit=async e=>{
+  e.preventDefault();
+  err.textContent=' ';btn.disabled=true;
+  const data=Object.fromEntries(new FormData(f));
+  try{
+    const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    const j=await r.json();
+    if(!r.ok){err.textContent=j.error||'登录失败';btn.disabled=false;return;}
+    location.href='/';
+  }catch(x){err.textContent='网络错误';btn.disabled=false;}
+};
+</script>
+</body>
+</html>
