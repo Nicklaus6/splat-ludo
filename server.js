@@ -103,6 +103,12 @@ function releasePending(seat, why) {
   pending.delete(seat);
   broadcast({ t: 'reconnectExpired', seat, reason: why || 'timeout' });
   if (phase === 'lobby') seatWaiting();
+  // if the room was fully abandoned (no live clients + no more pending), reset it fresh
+  if (clients.size === 0 && pending.size === 0) {
+    phase = 'lobby';
+    seats.fill(null);
+    seq = 0;
+  }
   broadcast(lobbySnapshot());
 }
 function reservePending(seat, clientId, name) {
@@ -237,10 +243,11 @@ wss.on('connection', ws => {
     } else {
       broadcast(lobbySnapshot());
     }
-    if (clients.size === 0) {
-      for (const [s, p] of pending) clearTimeout(p.timer);
-      pending.clear();
-      phase = 'lobby';
+    // Do NOT clear state when clients.size === 0 during 'playing' — pending seats need
+    // their 5-minute window even if everyone happens to drop simultaneously (WAN blip,
+    // wifi hiccup on both sides). The pending timers themselves will release seats,
+    // and the room resets when they all expire.
+    if (clients.size === 0 && phase === 'lobby') {
       seats.fill(null);
       seq = 0;
     }
