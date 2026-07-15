@@ -1,33 +1,28 @@
 # 🦑 Splat Ludo! 喷射飞行棋
 
-Splatoon 风格的局域网联机飞行棋。同一 WiFi 下的朋友用浏览器打开链接即可加入,空位自动由 CPU 补上。
+Splatoon 风格的联机飞行棋。邮箱注册后邀请朋友一起来抢座开战,空位自动由 CPU 补上。
 
-![](https://img.shields.io/badge/players-1--4-ff3d8c) ![](https://img.shields.io/badge/deps-ws%20only-a8e600)
+![](https://img.shields.io/badge/players-1--4-ff3d8c) ![](https://img.shields.io/badge/deps-ws%20+%20pg-a8e600)
+
+线上入口:**https://splat.jessie6.com**
 
 ## 特色
 
 - 🎨 Splatoon 风视觉:会眨眼的小鱿棋子、喷墨粒子特效、Web Audio 合成音效
 - 🖌️ **地盘系统**:走过的格子染上你的墨,侧栏实时显示各家占地百分比
-- 🌐 局域网联机:无需注册,同 WiFi 打开网址就能玩;掉线 5 分钟内可重连接回原色座位,超时才由 CPU 接管
+- 🌐 联机游玩:邮箱注册即玩,分享域名给朋友;掉线 5 分钟内可重连接回原色座位,超时才由 CPU 接管
 - 🤖 CPU 带简单策略:优先吃子 / 出门 / 冲终点
 
-## 运行
+## 本地开发运行
+
+需要一个可用的 PostgreSQL(账号系统落在 pg 里)。默认连 `127.0.0.1:5432/splat_ludo`,可用环境变量 `PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE` 覆盖。
 
 ```bash
 pnpm install
-pnpm start
+PGPASSWORD=xxx pnpm start
 ```
 
-启动后终端会打印两个地址:
-
-```
-本机游玩:   http://localhost:3000
-局域网加入: http://192.168.x.x:3000   ← 发给同 WiFi 的朋友
-```
-
-第一个入座的玩家是房主 👑,人齐后点「开战」。
-
-> macOS 首次运行若弹出防火墙提示,点「允许」朋友才能连入。
+启动后打开 `http://localhost:3000` → 注册账号 → 进入大厅。第一个入座的玩家是房主 👑,人齐后点「开战」。
 
 ## 规则
 
@@ -43,6 +38,9 @@ pnpm start
 
 ## 实现
 
-- `server.js` (~130 行):HTTP 静态托管 + WebSocket 中继与座位管理,不含游戏规则
+- `server.js`:HTTP 路由(登录/注册/游戏页) + WebSocket 中继 + 座位管理,不含游戏规则
+- `db.js` + `schema.sql`:pg 连接池 + 启动时幂等迁移
+- `auth.js`:scrypt 密码哈希 + cookie session (30 天)
 - `public/index.html`:完整游戏(SVG 棋盘 / 动画 / 音效 / 规则),零前端依赖
+- `public/{login,register}.html`:静态登录/注册页
 - 同步方式:确定性状态机 —— 服务器只广播「掷出几点」「哪只棋子动」,各客户端用相同规则独立推进,画面必然一致;CPU 行动仅由房主端计算后广播

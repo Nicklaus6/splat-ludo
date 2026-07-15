@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-- `pnpm start` — run the server (port 3000, or `PORT` env var). Prints localhost + LAN URLs on startup.
-- No build, lint, or test tooling exists. Only dependency: `ws`. Use `pnpm` (not npm/yarn) for install and any future scripts.
+- `pnpm start` — run the server (port 3000, or `PORT` env var). Requires PostgreSQL — configure via `PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE` env vars.
+- No build, lint, or test tooling exists. Deps: `ws`, `pg`. Use `pnpm` (not npm/yarn).
 
 ## Architecture
 
-Splatoon-styled LAN multiplayer Ludo. Two files carry everything:
+Splatoon-styled online multiplayer Ludo. Runs a single Node process serving both the game (WebSocket) and auth (email/password + session cookies). Core surfaces:
 
 - **`server.js`** (~120 lines): HTTP static file server + WebSocket relay. Contains **no game rules** — it only manages a single room (lobby phase, 4 seats, waiting queue, host = lowest occupied seat) and relays `roll`/`move` messages from seated players to everyone with `from: seat` attached.
 - **`public/index.html`** (~1000 lines): the entire game as one file — SVG board rendering, animations, Web Audio sound synthesis, Ludo rules, CPU AI, and networking. Zero frontend dependencies.

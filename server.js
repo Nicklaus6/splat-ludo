@@ -395,8 +395,9 @@ async function main() {
   server.listen(PORT, () => {
     console.log('');
     console.log('  🦑 SPLAT LUDO 服务器已启动!');
-    console.log(`  本机游玩:   http://localhost:${PORT}`);
-    console.log(`  局域网加入: http://${lanIP()}:${PORT}`);
+    console.log(`  本机访问:   http://localhost:${PORT}`);
+    const ip = lanIP();
+    if (ip !== 'localhost') console.log(`  同网访问:   http://${ip}:${PORT}`);
     console.log('');
   });
 }
