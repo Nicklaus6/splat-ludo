@@ -114,19 +114,23 @@ const server = http.createServer(async (req, res) => {
       return serveStatic(res, path.join(PUB, p.slice(1) + '.html'));
     }
 
-    // root and game assets need auth
-    const gameOrRoot = (p === '/' || p === '/index.html');
-    if (gameOrRoot) {
+    // portal (/) and game pages (/games/...) need auth
+    if (p === '/' || p === '/index.html' || p.startsWith('/games/')) {
       if (!await currentUser(req)) {
         res.writeHead(302, { Location: '/login' });
         return res.end();
       }
-      return serveStatic(res, path.join(PUB, 'index.html'));
+    }
+
+    // directory URLs without trailing slash → redirect so relative paths resolve
+    if (/^\/games\/[^./]+$/.test(p)) {
+      res.writeHead(302, { Location: p + '/' });
+      return res.end();
     }
 
     // ---- static ----
     let sp = p;
-    if (sp === '/') sp = '/index.html';
+    if (sp.endsWith('/')) sp += 'index.html';
     const file = path.join(PUB, path.normalize(sp));
     if (!file.startsWith(PUB)) { res.writeHead(403); return res.end(); }
     return serveStatic(res, file);

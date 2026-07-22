@@ -13,11 +13,11 @@ Splatoon-styled online multiplayer Ludo. Runs a single Node process serving both
 
 - **`server.js`** (~400 lines): HTTP routes (auth API + static pages) + WebSocket relay. Contains **no game rules** — it manages a single room (lobby phase, 4 seats, waiting queue, host = lowest occupied seat) and relays `roll`/`move` messages from seated players to everyone with `from: seat` attached.
 - **`auth.js`**: scrypt password hashing + 30-day cookie sessions (`splat_session`, HttpOnly). **`db.js`** + **`schema.sql`**: pg pool + idempotent startup migration (`users`, `sessions`, and a `rooms` placeholder table for future multi-room).
-- **`public/index.html`** (~1500 lines): the entire game as one file — SVG board rendering, animations, Web Audio sound synthesis, Ludo rules, CPU AI, and networking. Zero frontend dependencies. **`public/{login,register}.html`**: static auth pages.
+- **`public/index.html`**: portal homepage — a card grid listing all games (currently just Ludo). **`public/games/ludo/index.html`** (~1500 lines): the entire Ludo game as one file — SVG board rendering, animations, Web Audio sound synthesis, Ludo rules, CPU AI, and networking. Zero frontend dependencies. **`public/{login,register}.html`**: static auth pages. New games follow the same pattern: one self-contained HTML file under `public/games/<name>/`, listed as a card on the portal.
 
 ### Auth gating
 
-`/` (game page) redirects to `/login` without a valid session; `/login`/`/register` redirect to `/` when already logged in. API: `POST /api/register`, `POST /api/login`, `POST /api/logout`, `GET /api/me`. WebSocket connections without a valid session cookie get `{t:'authRequired'}` and close code 4401 — the client redirects to `/login`. Player name defaults to the account's `display_name`.
+`/` (portal) and everything under `/games/` redirect to `/login` without a valid session; `/login`/`/register` redirect to `/` when already logged in. `/games/<name>` (no trailing slash) 302s to `/games/<name>/` so relative asset paths resolve. API: `POST /api/register`, `POST /api/login`, `POST /api/logout`, `GET /api/me`. WebSocket connections without a valid session cookie get `{t:'authRequired'}` and close code 4401 — the client redirects to `/login`. Player name defaults to the account's `display_name`.
 
 ### Deterministic lockstep sync (the key design constraint)
 
