@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Deployment
 
-`pnpm deploy` (= `./deploy.sh`): refuses if local HEAD ≠ origin/main, then ssh → `git pull --ff-only` + `systemctl restart splat-ludo` + health checks. SSH key defaults to `~/SHDebian.pem` (override via `SPLAT_SSH_KEY`).
+`./deploy.sh` (or `pnpm run deploy` — NOT `pnpm deploy`, that's a pnpm builtin): refuses if local HEAD ≠ origin/main, then ssh → `git pull --ff-only` + `systemctl restart splat-ludo` + health checks. SSH key defaults to `~/SHDebian.pem` (override via `SPLAT_SSH_KEY`).
 
 Production is `https://splat.jessie6.com`, served from `/opt/splat-ludo` (a git clone of this repo) on `1.15.12.238` (`ssh -i ~/SHDebian.pem root@1.15.12.238`), run by the `splat-ludo` systemd unit on port 3010 behind a reverse proxy. PostgreSQL runs there in Docker (`lobe-postgres`, port 5432); credentials live in `/etc/systemd/system/splat-ludo.service.d/env.conf` — never commit them.
 
