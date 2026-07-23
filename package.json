@@ -4,7 +4,8 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "deploy": "./deploy.sh"
   },
   "dependencies": {
     "pg": "^8.13.0",

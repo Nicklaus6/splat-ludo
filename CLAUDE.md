@@ -7,6 +7,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `pnpm start` — run the server (port 3000, or `PORT` env var). Requires PostgreSQL — configure via `PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE` env vars (defaults: `127.0.0.1:5432`, user `splat_user`, db `splat_ludo`). Schema is applied idempotently at startup (`db.migrate()` runs `schema.sql`).
 - No build, lint, or test tooling exists. Deps: `ws`, `pg`. Use `pnpm` (not npm/yarn).
 
+## Deployment
+
+`pnpm deploy` (= `./deploy.sh`): refuses if local HEAD ≠ origin/main, then ssh → `git pull --ff-only` + `systemctl restart splat-ludo` + health checks. SSH key defaults to `~/SHDebian.pem` (override via `SPLAT_SSH_KEY`).
+
+Production is `https://splat.jessie6.com`, served from `/opt/splat-ludo` (a git clone of this repo) on `1.15.12.238` (`ssh -i ~/SHDebian.pem root@1.15.12.238`), run by the `splat-ludo` systemd unit on port 3010 behind a reverse proxy. PostgreSQL runs there in Docker (`lobe-postgres`, port 5432); credentials live in `/etc/systemd/system/splat-ludo.service.d/env.conf` — never commit them.
+
+Restart drops all WebSockets mid-game (state lives only in client memory, 5-min reconnect window), so avoid deploying while a game is likely in progress.
+
+For local dev against the production db: `PGHOST=1.15.12.238 PGPASSWORD=<from env.conf> pnpm start` — clean up any test accounts you register (`DELETE FROM users WHERE email=...`).
+
 ## Architecture
 
 Splatoon-styled online multiplayer Ludo. Runs a single Node process serving both the game (WebSocket) and auth (email/password + session cookies). Core surfaces:
