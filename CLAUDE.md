@@ -24,6 +24,7 @@ Splatoon-styled online multiplayer Ludo. Runs a single Node process serving both
 - **`server.js`** (~400 lines): HTTP routes (auth API + static pages) + WebSocket relay. Contains **no game rules** — it manages a single room (lobby phase, 4 seats, waiting queue, host = lowest occupied seat) and relays `roll`/`move` messages from seated players to everyone with `from: seat` attached.
 - **`auth.js`**: scrypt password hashing + 30-day cookie sessions (`splat_session`, HttpOnly). **`db.js`** + **`schema.sql`**: pg pool + idempotent startup migration (`users`, `sessions`, and a `rooms` placeholder table for future multi-room).
 - **`public/index.html`**: portal homepage — a card grid listing all games (currently just Ludo). **`public/games/ludo/index.html`** (~1500 lines): the entire Ludo game as one file — SVG board rendering, animations, Web Audio sound synthesis, Ludo rules, CPU AI, and networking. Zero frontend dependencies. **`public/{login,register}.html`**: static auth pages. New games follow the same pattern: one self-contained HTML file under `public/games/<name>/`, listed as a card on the portal.
+- **Portal styling convention**: the portal shell and auth pages are game-neutral (dark near-black theme, amber accent, "Jessie 的游戏厅" branding) — per-game art direction lives ONLY inside that game's card (add a `.card.<name>` override, see `.card.ludo`) and the game's own page. Don't leak one game's visual identity into shared surfaces.
 
 ### Auth gating
 
