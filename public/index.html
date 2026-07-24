@@ -3,65 +3,72 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🎮 Jessie 的游戏厅</title>
+<title>🕹️ Jessie 的游戏厅</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Titan+One&family=Baloo+2:wght@500;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap" rel="stylesheet">
 <style>
-:root{--paper:#f4efe6;--c0:#ff3d8c;--c0d:#c9226a;--c1:#a8e600;--c1d:#7ab400;--c2:#00cdeb;--c2d:#00a2c2;--c3:#ffb400;}
+:root{
+  --bg:#14161f;--panel:#1d2029;--line:rgba(255,255,255,.09);
+  --ink:#eef0f4;--dim:rgba(238,240,244,.62);--accent:#ffc63d;
+}
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;}
+html,body{height:100%}
 body{
   font-family:'Baloo 2','PingFang SC',sans-serif;
-  background:radial-gradient(1200px 800px at 80% -10%, #2a1f56 0%, transparent 60%), radial-gradient(900px 700px at -10% 110%, #251a4d 0%, transparent 55%), #16112b;
-  color:var(--paper);min-height:100%;padding:28px 20px 60px;
+  background:
+    radial-gradient(1000px 600px at 85% -10%, rgba(255,198,61,.06) 0%, transparent 60%),
+    var(--bg);
+  color:var(--ink);min-height:100%;padding:32px 22px 64px;
 }
-.bg-splat{position:fixed;pointer-events:none;opacity:.07;filter:blur(1px);z-index:0}
-.wrap{max-width:920px;margin:0 auto;position:relative;z-index:1}
-header{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:10px;flex-wrap:wrap}
-h1{font-family:'Titan One',sans-serif;font-size:40px;letter-spacing:1px}
-h1 .a{color:var(--c0)} h1 .b{color:var(--c2)}
+.wrap{max-width:920px;margin:0 auto}
+header{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:6px;flex-wrap:wrap}
+h1{font-size:30px;font-weight:800;letter-spacing:.5px}
+h1 .dot{color:var(--accent)}
 .userbox{display:flex;align-items:center;gap:10px;font-weight:700;font-size:14px}
-.userbox .who{opacity:.8}
-#logoutBtn{background:transparent;border:2px solid rgba(255,255,255,.15);color:var(--paper);border-radius:14px;padding:6px 12px;font-family:inherit;font-weight:700;font-size:13px;cursor:pointer}
-#logoutBtn:hover{border-color:rgba(255,255,255,.4)}
-.sub{opacity:.7;font-weight:600;margin-bottom:28px;font-size:15px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:22px}
+.userbox .who{color:var(--dim)}
+#logoutBtn{background:transparent;border:1.5px solid var(--line);color:var(--dim);border-radius:12px;padding:6px 12px;font-family:inherit;font-weight:700;font-size:13px;cursor:pointer}
+#logoutBtn:hover{border-color:rgba(255,255,255,.3);color:var(--ink)}
+.sub{color:var(--dim);font-weight:600;margin-bottom:30px;font-size:14.5px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:20px}
 .card{
-  display:block;text-decoration:none;color:var(--paper);
-  background:#241c4a;border-radius:22px;border:3px solid rgba(255,255,255,.12);
-  padding:24px 24px 20px;box-shadow:0 16px 40px rgba(0,0,0,.45);
-  transition:transform .18s, border-color .18s;position:relative;overflow:hidden;
+  display:block;text-decoration:none;color:var(--ink);
+  background:var(--panel);border-radius:18px;border:1.5px solid var(--line);
+  padding:22px 22px 18px;position:relative;overflow:hidden;
+  transition:transform .16s, border-color .16s, box-shadow .16s;
 }
-.card:hover{transform:translateY(-5px) rotate(-.6deg);border-color:var(--c1)}
-.card .emoji{font-size:52px;line-height:1;margin-bottom:12px;display:block}
-.card h2{font-family:'Titan One',sans-serif;font-size:24px;letter-spacing:.5px;margin-bottom:6px}
-.card p{font-size:13.5px;font-weight:600;opacity:.7;line-height:1.55}
-.card .tags{margin-top:14px;display:flex;gap:8px;flex-wrap:wrap}
-.tag{font-size:11.5px;font-weight:800;padding:3px 10px;border-radius:999px;letter-spacing:.5px}
-.tag.online{background:rgba(168,230,0,.15);color:var(--c1)}
-.tag.players{background:rgba(0,205,235,.15);color:var(--c2)}
-.card.soon{opacity:.55;cursor:default;border-style:dashed}
-.card.soon:hover{transform:none;border-color:rgba(255,255,255,.12)}
-.card.soon .tag{background:rgba(255,255,255,.1);color:var(--paper);opacity:.8}
+.card:hover{transform:translateY(-4px);border-color:rgba(255,255,255,.22);box-shadow:0 14px 34px rgba(0,0,0,.4)}
+.card .emoji{font-size:46px;line-height:1;margin-bottom:12px;display:block;position:relative}
+.card h2{font-size:21px;font-weight:800;letter-spacing:.3px;margin-bottom:6px;position:relative}
+.card p{font-size:13.5px;font-weight:600;color:var(--dim);line-height:1.55;position:relative}
+.card .tags{margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;position:relative}
+.tag{font-size:11.5px;font-weight:800;padding:3px 10px;border-radius:999px;letter-spacing:.5px;background:rgba(255,255,255,.08);color:var(--dim)}
+.card.soon{opacity:.5;cursor:default;border-style:dashed}
+.card.soon:hover{transform:none;border-color:var(--line);box-shadow:none}
+
+/* —— 每个游戏的个性只活在自己的卡片里 —— */
+.card.ludo{background:linear-gradient(145deg,#241c4a 0%,#1c1738 100%)}
+.card.ludo h2{font-weight:800;color:#f4efe6}
+.card.ludo .tag.online{background:rgba(168,230,0,.16);color:#a8e600}
+.card.ludo .tag.players{background:rgba(0,205,235,.16);color:#00cdeb}
+.card.ludo .splat{position:absolute;right:-34px;top:-34px;width:150px;height:150px;opacity:.16;transition:opacity .16s}
+.card.ludo:hover .splat{opacity:.3}
 </style>
 </head>
 <body>
-<svg class="bg-splat" style="top:-40px;left:-40px;width:340px;height:340px" viewBox="-60 -60 120 120"><path d="M-46,-8 Q-32,-46 -8,-40 Q22,-52 42,-24 Q52,10 30,32 Q0,54 -22,36 Q-52,20 -46,-8 Z" fill="#ff3d8c"/></svg>
-<svg class="bg-splat" style="bottom:-60px;right:-60px;width:400px;height:400px" viewBox="-60 -60 120 120"><path d="M-46,-8 Q-32,-46 -8,-40 Q22,-52 42,-24 Q52,10 30,32 Q0,54 -22,36 Q-52,20 -46,-8 Z" fill="#00cdeb"/></svg>
-
 <div class="wrap">
   <header>
-    <h1><span class="a">游戏</span><span class="b">厅</span> 🎮</h1>
+    <h1>Jessie 的游戏厅<span class="dot">.</span></h1>
     <div class="userbox">
       <span class="who" id="who"></span>
-      <button id="logoutBtn">🚪 退出</button>
+      <button id="logoutBtn">退出</button>
     </div>
   </header>
-  <div class="sub">挑一个游戏,叫上朋友一起玩!</div>
+  <div class="sub">挑一个游戏,叫上朋友一起玩</div>
 
   <div class="grid">
-    <a class="card" href="/games/ludo/">
+    <a class="card ludo" href="/games/ludo/">
+      <svg class="splat" viewBox="-60 -60 120 120"><path d="M-46,-8 Q-32,-46 -8,-40 Q22,-52 42,-24 Q52,10 30,32 Q0,54 -22,36 Q-52,20 -46,-8 Z" fill="#ff3d8c"/></svg>
       <span class="emoji">🦑</span>
       <h2>SPLAT LUDO!</h2>
       <p>Splatoon 风格的喷墨飞行棋:染地盘、破墨盾、吃子前冲,空位由 CPU 补上。</p>
@@ -84,7 +91,7 @@ fetch('/api/me').then(r=>{
   if(r.status===401){location.href='/login';return null;}
   return r.json();
 }).then(j=>{
-  if(j&&j.user)document.getElementById('who').textContent='🦑 '+j.user.display_name;
+  if(j&&j.user)document.getElementById('who').textContent=j.user.display_name;
 }).catch(()=>{});
 document.getElementById('logoutBtn').onclick=async()=>{
   try{ await fetch('/api/logout',{method:'POST'}); }catch{}
