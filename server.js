@@ -104,6 +104,30 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { user: u });
     }
 
+    // ---- tamagotchi pet save ----
+    if (p === '/api/games/tamagotchi/pet') {
+      const u = await currentUser(req);
+      if (!u) return sendJson(res, 401, { error: 'not_logged_in' });
+      if (req.method === 'GET') {
+        const row = await db.one('SELECT state FROM pets WHERE user_id = $1', [u.id]);
+        return sendJson(res, 200, { state: row ? row.state : null });
+      }
+      if (req.method === 'POST') {
+        return readJson(req, async (err, body) => {
+          if (err || !body || typeof body.state !== 'object' || body.state === null) {
+            return sendJson(res, 400, { error: 'bad_json' });
+          }
+          await db.query(
+            `INSERT INTO pets (user_id, state, updated_at) VALUES ($1, $2, NOW())
+             ON CONFLICT (user_id) DO UPDATE SET state = EXCLUDED.state, updated_at = NOW()`,
+            [u.id, body.state]
+          );
+          return sendJson(res, 200, { ok: true });
+        });
+      }
+      return sendJson(res, 405, { error: 'method_not_allowed' });
+    }
+
     // ---- pages ----
     if (p === '/login' || p === '/register') {
       // if already logged in, bounce to /

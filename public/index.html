@@ -53,6 +53,13 @@ h1 .dot{color:var(--accent)}
 .card.ludo .tag.players{background:rgba(0,205,235,.16);color:#00cdeb}
 .card.ludo .splat{position:absolute;right:-34px;top:-34px;width:150px;height:150px;opacity:.16;transition:opacity .16s}
 .card.ludo:hover .splat{opacity:.3}
+
+.card.tama{background:linear-gradient(145deg,#3d2438 0%,#2b1a2e 100%)}
+.card.tama h2{color:#ffe4ee}
+.card.tama .tag.single{background:rgba(255,143,171,.18);color:#ff8fab}
+.card.tama .tag.idle{background:rgba(159,191,90,.18);color:#b6d97a}
+.card.tama .egg{position:absolute;right:-18px;top:-18px;width:110px;height:110px;opacity:.14;transition:opacity .16s}
+.card.tama:hover .egg{opacity:.3}
 </style>
 </head>
 <body>
@@ -75,6 +82,16 @@ h1 .dot{color:var(--accent)}
       <div class="tags">
         <span class="tag online">联机</span>
         <span class="tag players">1-4 人</span>
+      </div>
+    </a>
+    <a class="card tama" href="/games/tamagotchi/">
+      <svg class="egg" viewBox="0 0 100 100"><path d="M50,8 C70,8 84,34 84,58 C84,80 69,92 50,92 C31,92 16,80 16,58 C16,34 30,8 50,8 Z" fill="#ff8fab"/></svg>
+      <span class="emoji">🥚</span>
+      <h2>口袋蛋仔</h2>
+      <p>90 年代电子宠物复刻:孵蛋、喂饭、铲屎、陪玩,不管它会长歪的哦。云端存档,离线它也在长大。</p>
+      <div class="tags">
+        <span class="tag single">单人</span>
+        <span class="tag idle">养成</span>
       </div>
     </a>
     <div class="card soon">

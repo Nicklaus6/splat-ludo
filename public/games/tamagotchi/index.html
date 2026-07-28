@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🥚 口袋蛋仔</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&display=swap" rel="stylesheet">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.185.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.185.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+:root{
+  --bg:#2a2438;
+  --bezel:#3a3f33;
+  --ink:#fff6f9;--dim:rgba(255,246,249,.6);
+  --panel:#352d47;--line:rgba(255,255,255,.12);
+  /* —— 以下由皮肤系统 (applySkin) 动态覆盖 —— */
+  --lcd:#b7c2a0;--lcd-ink:#2f3524;--lcd-dim:rgba(47,53,36,.35);
+  --shell-hi:#fbfaf2;--shell-mid:#eeeadb;--shell-lo:#d9d5c4;
+  --shell-text:#6b6552;--brand:#8f8a76;
+  --btn:#e8447a;--btn-hi:#ff7fa8;--btn-lo:#a92553;--btn-text:#fff;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  font-family:'Baloo 2','PingFang SC',sans-serif;color:var(--ink);
+  background:
+    radial-gradient(900px 500px at 20% -10%, rgba(255,143,171,.10) 0%, transparent 60%),
+    radial-gradient(700px 500px at 95% 100%, rgba(183,194,160,.08) 0%, transparent 60%),
+    var(--bg);
+  min-height:100%;padding:22px 16px 60px;
+}
+.wrap{max-width:520px;margin:0 auto}
+header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px}
+header .hbtns{display:flex;gap:10px;align-items:center}
+header a,#helpBtn,#skinBtn{
+  color:var(--dim);text-decoration:none;font-weight:700;font-size:14px;
+  background:transparent;border:1.5px solid var(--line);border-radius:12px;
+  padding:6px 12px;font-family:inherit;cursor:pointer;
+}
+header a:hover,#helpBtn:hover,#skinBtn:hover{color:var(--ink);border-color:rgba(255,255,255,.3)}
+h1{font-size:22px;font-weight:800;letter-spacing:.5px}
+
+/* ================= 3D 舞台 ================= */
+.stage{
+  position:relative;width:min(400px,94vw);margin:0 auto;
+  aspect-ratio:0.78;
+}
+#egg3d{position:absolute;inset:0;width:100%;height:100%;display:block}
+/* 地面接触阴影 */
+.stage::after{
+  content:'';position:absolute;left:50%;bottom:1.5%;transform:translateX(-50%);
+  width:62%;height:5%;border-radius:50%;
+  background:radial-gradient(ellipse at center, rgba(0,0,0,.5) 0%, rgba(0,0,0,.22) 45%, transparent 72%);
+  z-index:0;pointer-events:none;
+}
+/* DOM 面板层:叠在 3D 蛋上,和蛋同步转动 */
+.devui{
+  position:absolute;inset:0;z-index:2;
+  display:flex;flex-direction:column;align-items:center;
+  padding:20% 27% 14%;
+  pointer-events:none;
+}
+.devui > *{pointer-events:auto}
+.brand{
+  font-size:10px;font-weight:800;letter-spacing:2px;color:var(--brand);
+  margin-bottom:2%;text-shadow:0 1px 0 rgba(255,255,255,.55);
+}
+/* 模压凸起边框:壳同色塑料,顶缘受光、下缘投影 → 看起来从壳面鼓起 */
+.bezel{
+  width:100%;border-radius:30px;
+  background:linear-gradient(178deg, var(--shell-hi) 0%, var(--shell-mid) 55%, var(--shell-lo) 100%);
+  padding:9px;
+  box-shadow:
+    inset 0 2px 2px rgba(255,255,255,.85),
+    inset 0 -2px 3px rgba(0,0,0,.18),
+    inset 2px 0 2px rgba(255,255,255,.25),
+    inset -2px 0 3px rgba(0,0,0,.10),
+    0 6px 10px rgba(0,0,0,.22),
+    0 1px 3px rgba(0,0,0,.18);
+}
+/* 深色屏框陷进 bezel:顶部被边框遮出重阴影,底部内缘接一线光 */
+.screenframe{
+  width:100%;background:
+    linear-gradient(180deg, rgba(0,0,0,.42) 0%, rgba(0,0,0,0) 22%),
+    var(--bezel);
+  border-radius:22px;
+  padding:7px 9px 8px;
+  box-shadow:
+    inset 0 5px 9px rgba(0,0,0,.72),
+    inset 0 12px 20px rgba(0,0,0,.28),
+    inset 3px 0 6px rgba(0,0,0,.35),
+    inset -3px 0 6px rgba(0,0,0,.35),
+    inset 0 -1px 1px rgba(255,255,255,.14);
+}
+.iconrow{display:grid;grid-template-columns:repeat(4,1fr);gap:2px;padding:2px 2px}
+.iconrow .ico{
+  display:flex;align-items:center;justify-content:center;
+  padding:4px 0 3px;border-radius:6px;cursor:pointer;user-select:none;
+  transition:background .15s, box-shadow .15s;
+}
+.iconrow .ico.sel{background:var(--lcd);box-shadow:0 0 0 1.5px rgba(255,255,255,.5)}
+.iconrow .ico.blink{animation:blink .9s steps(2) infinite}
+@keyframes blink{50%{opacity:.25}}
+.iconrow canvas{width:22px;height:22px;image-rendering:pixelated;display:block}
+#lcd{
+  display:block;width:100%;image-rendering:pixelated;
+  background:var(--lcd);border-radius:4px;cursor:pointer;
+  box-shadow:
+    inset 0 4px 8px rgba(0,0,0,.35),
+    inset 0 0 18px rgba(0,0,0,.20),
+    inset 2px 0 5px rgba(0,0,0,.16),
+    inset -2px 0 5px rgba(0,0,0,.16);
+  margin:3px 0;
+}
+.speech{
+  min-height:20px;text-align:center;font-size:12px;font-weight:700;
+  color:#cdd6bb;padding:1px 4px 2px;
+}
+.petname{
+  text-align:center;font-weight:800;font-size:14px;color:var(--shell-text);margin-top:3%;
+  text-shadow:0 1px 0 rgba(255,255,255,.55);
+}
+.petname small{font-weight:700;color:var(--brand);font-size:11.5px;margin-left:6px}
+
+/* 三颗实体按键 */
+.keys{
+  display:flex;justify-content:center;gap:11%;width:76%;
+  margin-top:3%;align-items:flex-start;
+}
+.key{display:flex;flex-direction:column;align-items:center;gap:5px}
+.key button{
+  width:42px;height:42px;border-radius:50%;border:none;cursor:pointer;
+  background:radial-gradient(circle at 35% 30%, var(--btn-hi) 0%, var(--btn) 55%, var(--btn-lo) 100%);
+  box-shadow:0 5px 0 var(--btn-lo), 0 8px 14px rgba(0,0,0,.35), inset 0 2px 3px rgba(255,255,255,.5);
+  font-family:inherit;font-weight:800;font-size:15px;color:var(--btn-text);
+  text-shadow:0 1px 2px rgba(0,0,0,.35);
+  transition:transform .07s, box-shadow .07s;
+}
+.key button:active{transform:translateY(4px);box-shadow:0 1px 0 var(--btn-lo), 0 3px 8px rgba(0,0,0,.3), inset 0 2px 3px rgba(255,255,255,.5)}
+.key .cap{font-size:11px;font-weight:800;color:var(--brand);text-shadow:0 1px 0 rgba(255,255,255,.55)}
+
+.hint{
+  text-align:center;color:var(--dim);font-size:12.5px;font-weight:600;
+  margin-top:16px;line-height:1.7;
+}
+.hint b{color:var(--ink)}
+
+/* ================= 弹窗 ================= */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:20px;z-index:10}
+.overlay.show{display:flex}
+.modal{background:var(--panel);border:1.5px solid var(--line);border-radius:20px;padding:26px 24px;max-width:360px;width:100%;text-align:center}
+.modal h2{font-size:19px;font-weight:800;margin-bottom:8px}
+.modal p{font-size:13.5px;font-weight:600;color:var(--dim);line-height:1.6;margin-bottom:16px}
+.modal .big{font-size:44px;margin:6px 0 12px}
+.modal input{
+  width:100%;font-family:inherit;font-weight:700;font-size:15px;text-align:center;
+  background:rgba(0,0,0,.3);border:1.5px solid var(--line);border-radius:12px;
+  color:var(--ink);padding:10px;margin-bottom:16px;outline:none;
+}
+.modal input:focus{border-color:var(--btn-hi)}
+.btnrow{display:flex;gap:10px;justify-content:center}
+.btn{
+  font-family:inherit;font-weight:800;font-size:15px;border:none;border-radius:12px;
+  padding:11px 22px;cursor:pointer;color:#3a1220;background:var(--btn-hi);
+  transition:transform .1s;
+}
+.btn:active{transform:scale(.95)}
+.btn.wide{flex:1}
+.mgpet{font-size:40px;height:52px;line-height:52px}
+.mground{font-size:13px;font-weight:700;color:var(--dim);margin-bottom:10px}
+
+/* 状态表 — 仿 LCD 风格 */
+#statsModal{background:var(--lcd);border:6px solid var(--bezel);color:var(--lcd-ink)}
+#statsModal h2{color:var(--lcd-ink);font-size:17px;letter-spacing:2px}
+#statsModal .meta{font-size:13px;font-weight:800;margin-bottom:14px;color:var(--lcd-ink);opacity:.75}
+.stat{display:grid;grid-template-columns:52px 1fr 34px;align-items:center;gap:8px;margin:8px 0;font-size:13px;font-weight:800}
+.stat .label{text-align:left}
+.bar{height:12px;border-radius:3px;background:var(--lcd-dim);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--lcd-ink);transition:width .3s}
+.bar i.bad{animation:barblink .8s steps(2) infinite}
+@keyframes barblink{50%{opacity:.3}}
+.stat .num{text-align:right;font-variant-numeric:tabular-nums}
+#statsModal .btn{background:var(--lcd-ink);color:var(--lcd);margin-top:14px}
+
+/* 玩法说明 */
+#helpModal{max-width:520px;text-align:left;max-height:82vh;display:flex;flex-direction:column}
+#helpModal h2{text-align:center;margin-bottom:12px}
+#helpModal .hbody{overflow-y:auto;padding-right:6px;font-size:13.5px;line-height:1.7;font-weight:500;color:var(--ink)}
+#helpModal .hbody h3{font-size:15px;margin:14px 0 5px;color:var(--btn-hi)}
+#helpModal .hbody h3:first-child{margin-top:0}
+#helpModal .hbody ul{padding-left:20px;margin:4px 0}
+#helpModal .hbody li{margin:3px 0}
+#helpModal .hbody b{color:#ffd54f}
+#helpModal .closebar{margin-top:16px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🥚 口袋蛋仔</h1>
+    <div class="hbtns">
+      <button id="skinBtn">🎨 换壳</button>
+      <button id="helpBtn">📖 说明</button>
+      <a href="/">← 返回游戏厅</a>
+    </div>
+  </header>
+
+  <div class="stage" id="stage">
+    <canvas id="egg3d"></canvas>
+    <div class="devui" id="devui">
+      <div class="brand" id="brand">POCKET PET · 1997</div>
+      <div class="bezel">
+      <div class="screenframe">
+        <div class="iconrow" id="rowTop"></div>
+        <canvas id="lcd" width="48" height="32"></canvas>
+        <div class="iconrow" id="rowBottom"></div>
+        <div class="speech" id="speech"></div>
+      </div>
+      </div>
+      <div class="petname" id="petname"></div>
+      <div class="keys">
+        <div class="key"><button id="keyA">A</button><span class="cap">选择</span></div>
+        <div class="key"><button id="keyB">B</button><span class="cap">确认</span></div>
+        <div class="key"><button id="keyC">C</button><span class="cap">取消</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hint">
+    按 <b>A</b> 移动光标选功能,<b>B</b> 执行,<b>C</b> 取消 · 也可以直接点图标<br>
+    点屏幕可以摸摸它 · 键盘 <b>A / B / C</b> 键同样有效
+  </div>
+</div>
+
+<!-- 状态表 -->
+<div class="overlay" id="statsOverlay">
+  <div class="modal" id="statsModal">
+    <h2>▚ 状 态 ▞</h2>
+    <div class="meta" id="statsMeta"></div>
+    <div class="stat"><span class="label">饱食</span><div class="bar"><i id="bHunger"></i></div><span class="num" id="nHunger"></span></div>
+    <div class="stat"><span class="label">心情</span><div class="bar"><i id="bHappy"></i></div><span class="num" id="nHappy"></span></div>
+    <div class="stat"><span class="label">精力</span><div class="bar"><i id="bEnergy"></i></div><span class="num" id="nEnergy"></span></div>
+    <div class="stat"><span class="label">卫生</span><div class="bar"><i id="bClean"></i></div><span class="num" id="nClean"></span></div>
+    <button class="btn" id="statsClose">返 回</button>
+  </div>
+</div>
+
+<!-- 玩法说明 -->
+<div class="overlay" id="helpOverlay">
+  <div class="modal" id="helpModal">
+    <h2>📖 饲养手册</h2>
+    <div class="hbody">
+      <h3>🐣 孵蛋</h3>
+      <ul>
+        <li>一切从一颗蛋开始:<b>点点屏幕</b> 帮它暖蛋,不点的话大约 5 小时也会自己孵化。</li>
+        <li>孵出来先起个名字,然后就是你的崽了。</li>
+      </ul>
+      <h3>🕹️ 操作方式(和 1997 年的原机一样)</h3>
+      <ul>
+        <li>屏幕上下各有一排功能图标:<b>A 键</b> 移动光标、<b>B 键</b> 执行、<b>C 键</b> 取消。</li>
+        <li>偷懒的话,直接点图标也行。点屏幕 = 摸摸它(它会开心一点点)。</li>
+        <li>图标从左到右:<b>吃饭 / 零食 / 玩耍 / 打扫</b>(上排)、<b>吃药 / 灯 / 状态</b>(下排)。</li>
+        <li>右下角 <b>❗</b> 亮起 = 它在呼唤你,快去看看是饿了、病了还是拉了。</li>
+      </ul>
+      <h3>🍙 日常照顾</h3>
+      <ul>
+        <li><b>四项指标</b>(藏在状态图标里):饱食、心情、精力、卫生,都会随时间下降。</li>
+        <li>吃饭管饱;零食涨心情但不顶饿;玩「猜方向」小游戏最涨心情,不过费体力。</li>
+        <li>它随时可能拉 💩,不打扫卫生会掉得很快,还容易生病。</li>
+        <li>精力耗尽它会自己睡着;也可以用灯提前哄睡,睡饱自然醒。</li>
+      </ul>
+      <h3>🤒 生病与死亡(是真的会死!)</h3>
+      <ul>
+        <li>太脏或太饿容易生病,生病要赶紧喂药,拖 <b>36 小时</b> 不治会死。</li>
+        <li>饿到 0 或心情到 0 的状态累计 <b>48 小时</b>,它也会离开你。</li>
+        <li>死了只能重新孵一颗蛋——所以,好好待它。</li>
+      </ul>
+      <h3>✨ 成长</h3>
+      <ul>
+        <li>成长阶段:蛋 → 宝宝(12小时)→ 幼年(2天)→ 少年(5天)→ 成年。</li>
+        <li><b>关掉网页它也在长大</b>:时间照常流逝,回来时该饿的饿、该拉的拉。云端存档,换设备接着养。</li>
+      </ul>
+      <h3>🎨 换壳</h3>
+      <ul>
+        <li>右上角「换壳」可以给机身换配色,换壳不影响里面的崽,选择会存进云端。</li>
+      </ul>
+    </div>
+    <div class="closebar"><button class="btn" id="helpClose">明白啦!</button></div>
+  </div>
+</div>
+
+<!-- 起名 -->
+<div class="overlay" id="nameOverlay">
+  <div class="modal">
+    <div class="big">🐣</div>
+    <h2>它孵出来啦!</h2>
+    <p>给你的小家伙起个名字吧</p>
+    <input id="nameInput" maxlength="8" placeholder="最多 8 个字">
+    <div class="btnrow"><button class="btn wide" id="nameOk">就叫这个!</button></div>
+  </div>
+</div>
+
+<!-- 猜方向小游戏 -->
+<div class="overlay" id="gameOverlay">
+  <div class="modal">
+    <h2>猜猜它往哪边看?</h2>
+    <div class="mground" id="mgRound"></div>
+    <div class="mgpet" id="mgPet">🐣</div>
+    <p id="mgMsg">猜对越多它越开心~</p>
+    <div class="btnrow">
+      <button class="btn wide" id="mgLeft">◀ 左边</button>
+      <button class="btn wide" id="mgRight">右边 ▶</button>
+    </div>
+  </div>
+</div>
+
+<!-- 死亡 -->
+<div class="overlay" id="deadOverlay">
+  <div class="modal">
+    <div class="big">👻</div>
+    <h2 id="deadTitle">它去当小天使了…</h2>
+    <p id="deadMsg"></p>
+    <div class="btnrow"><button class="btn wide" id="rebirthBtn">再养一只 🥚</button></div>
+  </div>
+</div>
+
+<script type="module">
+"use strict";
+/* ================= 常量 ================= */
+const SAVE_URL = '/api/games/tamagotchi/pet';
+const MIN = 60 * 1000, HOUR = 60 * MIN;
+const STAGE_AT = { baby: 0, child: 12 * HOUR, teen: 48 * HOUR, adult: 120 * HOUR };
+const STAGE_NAME = { egg: '蛋', baby: '宝宝', child: '幼年', teen: '少年', adult: '成年' };
+const DEATH_DISTRESS_MIN = 48 * 60;   // 饱食/心情归零累计 48 小时 → 死亡
+const SICK_DEATH_MS = 36 * HOUR;      // 生病拖 36 小时不治 → 死亡
+
+/* ================= 皮肤系统 =================
+   加一代新机 = 在这里加一条配置(壳三段渐变/斑点/按键/液晶配色),
+   3D 壳的贴图和材质、DOM 配色全部读当前皮肤,零改动。 */
+const SKINS = {
+  classic: {
+    label: '初代 · 奶白泼点', brand: 'POCKET PET · 1997',
+    shell: ['#fbfaf2', '#eeeadb', '#d9d5c4'],
+    shellText: '#6b6552', brandColor: '#8f8a76',
+    spots: ['#4fc3f7', '#ff8a65', '#ffd54f', '#aed581', '#f06292'],
+    btn: { hi: '#ff7fa8', base: '#e8447a', lo: '#a92553', text: '#fff' },
+    lcd: '#b7c2a0', ink: '#2f3524',
+  },
+  sakura: {
+    label: '樱花粉', brand: 'POCKET PET · SAKURA',
+    shell: ['#ffe9f0', '#ffc4d6', '#f0a0ba'],
+    shellText: '#8a4a60', brandColor: '#c07a92',
+    spots: ['#ffffff', '#ffd9e4', '#fff3f7'],
+    btn: { hi: '#ffffff', base: '#ffe3ec', lo: '#d9a0b4', text: '#a34d68' },
+    lcd: '#c2cba8', ink: '#3a3524',
+  },
+  soda: {
+    label: '苏打蓝', brand: 'POCKET PET · SODA',
+    shell: ['#e2f4fc', '#aedcf0', '#7fc0dd'],
+    shellText: '#2f5b72', brandColor: '#5d8ea6',
+    spots: ['#ffffff', '#ffd54f', '#fff176'],
+    btn: { hi: '#ffe082', base: '#ffb300', lo: '#b57b00', text: '#5c3d00' },
+    lcd: '#b0c4b4', ink: '#243b30',
+  },
+  lemon: {
+    label: '柠檬黄', brand: 'POCKET PET · LEMON',
+    shell: ['#fff8dd', '#ffe58f', '#f2cc55'],
+    shellText: '#7a5f14', brandColor: '#a8892e',
+    spots: ['#ff8a65', '#4fc3f7', '#ffffff', '#f06292'],
+    btn: { hi: '#7fd8f7', base: '#2eaadc', lo: '#1a7099', text: '#0c3a52' },
+    lcd: '#bdc49c', ink: '#33421c',
+  },
+};
+const SKIN_ORDER = Object.keys(SKINS);
+let SKIN = SKINS.classic;
+
+function applySkin(name) {
+  SKIN = SKINS[name] || SKINS.classic;
+  const r = document.documentElement.style;
+  r.setProperty('--shell-hi', SKIN.shell[0]);
+  r.setProperty('--shell-mid', SKIN.shell[1]);
+  r.setProperty('--shell-lo', SKIN.shell[2]);
+  r.setProperty('--shell-text', SKIN.shellText);
+  r.setProperty('--brand', SKIN.brandColor);
+  r.setProperty('--btn', SKIN.btn.base);
+  r.setProperty('--btn-hi', SKIN.btn.hi);
+  r.setProperty('--btn-lo', SKIN.btn.lo);
+  r.setProperty('--btn-text', SKIN.btn.text);
+  r.setProperty('--lcd', SKIN.lcd);
+  r.setProperty('--lcd-ink', SKIN.ink);
+  r.setProperty('--lcd-dim', hexToRgba(SKIN.ink, .3));
+  document.getElementById('brand').textContent = SKIN.brand;
+  updateEggSkin();                       // 重绘 3D 壳贴图
+  if (iconBuilt) refreshIcons();
+  if (pet) render();
+}
+function hexToRgba(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`;
+}
+
+/* ================= 3D 蛋壳 (three.js / WebGL) ================= */
+let eggScene = null;   // {renderer, scene, camera, group, shellMat, shellTex, texCanvas}
+
+// 壳贴图:三段纵向渐变 + 随机泼点,画进 CanvasTexture
+function paintShellTexture() {
+  const c = eggScene.texCanvas, g = c.getContext('2d');
+  const Wt = c.width, Ht = c.height;
+  const grad = g.createLinearGradient(0, Ht, 0, 0);   // v=0 底 → v=1 顶
+  grad.addColorStop(0, SKIN.shell[2]);
+  grad.addColorStop(0.45, SKIN.shell[1]);
+  grad.addColorStop(1, SKIN.shell[0]);
+  g.fillStyle = grad;
+  g.fillRect(0, 0, Wt, Ht);
+  // 泼点:固定种子伪随机,换肤时图案稳定
+  let seed = 42;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 46; i++) {
+    const x = rnd() * Wt, y = (0.08 + rnd() * 0.84) * Ht;
+    const rad = (10 + rnd() * 22) * (Wt / 1024);
+    g.fillStyle = SKIN.spots[i % SKIN.spots.length];
+    g.globalAlpha = 0.82;
+    // 画三份处理水平接缝
+    for (const ox of [-Wt, 0, Wt]) {
+      g.beginPath(); g.arc(x + ox, y, rad, 0, Math.PI * 2); g.fill();
+    }
+  }
+  g.globalAlpha = 1;
+  eggScene.shellTex.needsUpdate = true;
+}
+function updateEggSkin() { if (eggScene) paintShellTexture(); }
+
+async function initEgg3D() {
+  const THREE = await import('three');
+  const { RoomEnvironment } = await import('three/addons/environments/RoomEnvironment.js');
+  const cvs = document.getElementById('egg3d');
+  const renderer = new THREE.WebGLRenderer({ canvas: cvs, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+
+  const scene = new THREE.Scene();
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+  const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 20);
+  camera.position.set(0, 0.1, 5.6);
+
+  // —— 蛋体:旋转体,下宽上窄 ——
+  const pts = [];
+  const N = 64;
+  for (let i = 0; i <= N; i++) {
+    const phi = (i / N) * Math.PI;                       // 0=底 → PI=顶
+    const y = -Math.cos(phi) * 1.24;
+    const rad = Math.sin(phi) * (1 + 0.16 * Math.cos(phi));
+    pts.push(new THREE.Vector2(Math.max(rad, 0.0001), y));
+  }
+  const geo = new THREE.LatheGeometry(pts, 96);
+
+  const texCanvas = document.createElement('canvas');
+  texCanvas.width = 1024; texCanvas.height = 1024;
+  const shellTex = new THREE.CanvasTexture(texCanvas);
+  shellTex.colorSpace = THREE.SRGBColorSpace;
+  shellTex.wrapS = THREE.RepeatWrapping;
+
+  const shellMat = new THREE.MeshPhysicalMaterial({
+    map: shellTex,
+    roughness: 0.38, metalness: 0,
+    clearcoat: 1, clearcoatRoughness: 0.14,   // 清漆层 = 亮面塑料
+    envMapIntensity: 0.85,
+  });
+  const egg = new THREE.Mesh(geo, shellMat);
+
+  // —— 顶部挂链环 ——
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(0.15, 0.05, 24, 48),
+    new THREE.MeshPhysicalMaterial({ color: 0xd9d5c4, roughness: 0.4, clearcoat: 0.8, envMapIntensity: 0.7 })
+  );
+  ring.position.y = 1.3;
+
+  const group = new THREE.Group();
+  group.add(egg); group.add(ring);
+  group.position.y = 0.06;
+  scene.add(group);
+
+  // 主光 + 补光(环境贴图负责反射,这两盏定方向感)
+  const key = new THREE.DirectionalLight(0xffffff, 1.4);
+  key.position.set(-2.5, 4, 3);
+  scene.add(key);
+  const fill = new THREE.DirectionalLight(0xaeccff, 0.35);
+  fill.position.set(3, -1, 2);
+  scene.add(fill);
+
+  eggScene = { renderer, scene, camera, group, shellMat, shellTex, texCanvas, ringMat: ring.material };
+  paintShellTexture();
+
+  // 尺寸自适应
+  const stage = document.getElementById('stage');
+  function resize() {
+    const w = stage.clientWidth, h = stage.clientHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  new ResizeObserver(resize).observe(stage);
+  resize();
+
+  (function loop() {
+    requestAnimationFrame(loop);
+    renderer.render(scene, camera);
+  })();
+}
+
+/* ================= 像素画 ================= */
+// '#' = 点亮的深色像素。每个阶段两帧。
+const SPR = {
+  egg: [[
+    '..####..',
+    '.######.',
+    '########',
+    '##.#.#.#',
+    '#.#.#.##',
+    '########',
+    '.######.',
+    '..####..',
+  ],[
+    '..####..',
+    '.######.',
+    '########',
+    '#.#.#.##',
+    '##.#.#.#',
+    '########',
+    '.######.',
+    '..####..',
+  ]],
+  baby: [[
+    '..####..',
+    '.######.',
+    '##.##.##',
+    '########',
+    '########',
+    '.##..##.',
+  ],[
+    '..####..',
+    '.######.',
+    '##.##.##',
+    '########',
+    '########',
+    '..#..#..',
+  ]],
+  child: [[
+    '.#......#.',
+    '..######..',
+    '.########.',
+    '##.####.##',
+    '##########',
+    '.########.',
+    '..##..##..',
+  ],[
+    '.#......#.',
+    '..######..',
+    '.########.',
+    '##.####.##',
+    '##########',
+    '.########.',
+    '.##....##.',
+  ]],
+  teen: [[
+    '..########..',
+    '.##########.',
+    '###.####.###',
+    '############',
+    '#.########.#',
+    '.##########.',
+    '..###..###..',
+  ],[
+    '..########..',
+    '.##########.',
+    '###.####.###',
+    '############',
+    '#.########.#',
+    '.##########.',
+    '.###....###.',
+  ]],
+  adult: [[
+    '......##......',
+    '..##########..',
+    '.############.',
+    '####.####.####',
+    '##############',
+    '##.########.##',
+    '.############.',
+    '..####..####..',
+  ],[
+    '.....##.......',
+    '..##########..',
+    '.############.',
+    '####.####.####',
+    '##############',
+    '##.########.##',
+    '.############.',
+    '.####....####.',
+  ]],
+  ghost: [[
+    '..####..',
+    '.######.',
+    '##.##.##',
+    '########',
+    '########',
+    '#.#.#.#.',
+  ],[
+    '..####..',
+    '.######.',
+    '##.##.##',
+    '########',
+    '########',
+    '.#.#.#.#',
+  ]],
+};
+const SPR_POOP = ['...#..','..##..','.####.','######'];
+const SPR_TOMB = ['..####..','.######.','.##..##.','.######.','.##..##.','.######.','########'];
+const SPR_Z = ['###','..#','.#.','#..','###'];
+const SPR_HEART = ['.#.#.','#####','#####','.###.','..#..'];
+
+/* ---- 功能图标像素画 (12 宽) ---- */
+const ICON_PX = {
+  meal: [
+    '.....##.....',
+    '....####....',
+    '...######...',
+    '..########..',
+    '.##########.',
+    '############',
+    '############',
+    '...######...',
+    '...######...',
+  ],
+  snack: [
+    '....####....',
+    '..########..',
+    '..##..####..',
+    '..########..',
+    '....####....',
+    '.....#......',
+    '.....#......',
+    '.....#......',
+    '.....#......',
+  ],
+  play: [
+    '.##########.',
+    '.##########.',
+    '.##..##..##.',
+    '.##..##..##.',
+    '.##########.',
+    '.####..####.',
+    '.####..####.',
+    '.##########.',
+    '.##..##..##.',
+    '.##..##..##.',
+    '.##########.',
+  ],
+  clean: [
+    '.....##.....',
+    '.....##.....',
+    '.....##.....',
+    '.....##.....',
+    '....####....',
+    '...######...',
+    '..########..',
+    '..########..',
+    '..#.#..#.#..',
+  ],
+  med: [
+    '....####....',
+    '....####....',
+    '############',
+    '############',
+    '....####....',
+    '....####....',
+  ],
+  light: [
+    '....####....',
+    '..########..',
+    '..########..',
+    '..########..',
+    '...######...',
+    '....####....',
+    '....####....',
+    '.....##.....',
+  ],
+  stats: [
+    '.........##.',
+    '.........##.',
+    '.....##..##.',
+    '.....##..##.',
+    '.##..##..##.',
+    '.##..##..##.',
+    '.##..##..##.',
+    '############',
+  ],
+  attn: [
+    '....####....',
+    '....####....',
+    '....####....',
+    '....####....',
+    '.....##.....',
+    '............',
+    '....####....',
+    '....####....',
+  ],
+};
+function drawIcon(cv2, name, mode) {
+  const g = cv2.getContext('2d');
+  g.clearRect(0, 0, 12, 12);
+  const m = ICON_PX[name];
+  const oy = Math.floor((12 - m.length) / 2);
+  let color, alpha;
+  if (mode === 'sel') { color = SKIN.ink; alpha = 1; }
+  else if (mode === 'alert') { color = '#ff5d7a'; alpha = 1; }
+  else if (mode === 'avail') { color = '#cdd6bb'; alpha = .85; }
+  else { color = '#cdd6bb'; alpha = .22; }
+  g.globalAlpha = alpha;
+  g.fillStyle = color;
+  for (let r = 0; r < m.length; r++)
+    for (let c = 0; c < m[r].length; c++)
+      if (m[r][c] === '#') g.fillRect(c, r + oy, 1, 1);
+  g.globalAlpha = 1;
+}
+
+/* ================= 音效 ================= */
+let actx = null;
+function beep(freq, dur, when) {
+  try {
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    const t = actx.currentTime + (when || 0);
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = 'square'; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.04, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g); g.connect(actx.destination);
+    o.start(t); o.stop(t + dur);
+  } catch {}
+}
+const sfx = {
+  press: () => beep(880, 0.06),
+  move: () => beep(660, 0.05),
+  eat: () => { beep(523, 0.08); beep(659, 0.08, 0.09); },
+  happy: () => { beep(659, 0.07); beep(784, 0.07, 0.08); beep(1047, 0.1, 0.16); },
+  no: () => beep(196, 0.15),
+  hatch: () => { beep(523, 0.1); beep(659, 0.1, 0.12); beep(784, 0.1, 0.24); beep(1047, 0.2, 0.36); },
+  evolve: () => { beep(392, 0.1); beep(523, 0.1, 0.12); beep(659, 0.1, 0.24); beep(784, 0.2, 0.36); },
+  dead: () => { beep(392, 0.25); beep(330, 0.25, 0.3); beep(262, 0.5, 0.6); },
+};
+
+/* ================= 宠物状态 ================= */
+let pet = null;
+let dirty = false;
+
+function newEgg() {
+  return {
+    v: 1, name: null, stage: 'egg',
+    createdAt: Date.now(), hatchedAt: null,
+    warm: 0,                             // 蛋的孵化进度 0-100
+    hunger: 100, happy: 100, energy: 100, clean: 100,
+    poops: 0, sick: false, sickSince: null, sleeping: false,
+    distressMin: 0, alive: true, deadAt: null, deathCause: null,
+    skin: 'classic',
+    lastTick: Date.now(),
+  };
+}
+function ageMs(p) { return p.hatchedAt ? Date.now() - p.hatchedAt : 0; }
+function stageForAge(ms) {
+  if (ms >= STAGE_AT.adult) return 'adult';
+  if (ms >= STAGE_AT.teen) return 'teen';
+  if (ms >= STAGE_AT.child) return 'child';
+  return 'baby';
+}
+const clamp = v => Math.max(0, Math.min(100, v));
+
+/* ---- 时间推进:按分钟模拟(离线也照常过日子) ---- */
+function applyElapsed(p, now) {
+  if (!p.alive) { p.lastTick = now; return; }
+  let mins = Math.floor((now - p.lastTick) / MIN);
+  if (mins <= 0) return;
+  mins = Math.min(mins, 21 * 24 * 60);   // 最多补 3 周,再久也没意义
+  const events = [];
+
+  for (let i = 0; i < mins; i++) {
+    p.lastTick += MIN;
+    if (p.stage === 'egg') {
+      p.warm += 0.35;                    // 放着不管约 5 小时自己孵出来
+      if (p.warm >= 100) { hatch(p, events); }
+      continue;
+    }
+    // —— 消耗 ——
+    if (p.sleeping) {
+      p.energy = clamp(p.energy + 0.8);
+      p.hunger = clamp(p.hunger - 0.05);
+      p.clean = clamp(p.clean - 0.03);
+      if (p.energy >= 100) { p.sleeping = false; events.push('wake'); }
+    } else {
+      p.hunger = clamp(p.hunger - 0.1);
+      p.happy = clamp(p.happy - 0.085);
+      p.energy = clamp(p.energy - 0.115);
+      p.clean = clamp(p.clean - (0.07 + p.poops * 0.05));
+      if (p.poops < 3 && Math.random() < 1 / 180) { p.poops++; p.clean = clamp(p.clean - 15); events.push('poop'); }
+      if (p.energy <= 8) { p.sleeping = true; events.push('sleep'); }
+    }
+    // —— 生病 ——
+    if (!p.sick) {
+      if ((p.clean < 20 && Math.random() < 1 / 300) || (p.hunger < 10 && Math.random() < 1 / 400)) {
+        p.sick = true; p.sickSince = p.lastTick; events.push('sick');
+      }
+    } else {
+      p.happy = clamp(p.happy - 0.2);
+      if (p.lastTick - p.sickSince > SICK_DEATH_MS) { die(p, 'sick'); break; }
+    }
+    // —— 濒危计时 ——
+    if (p.hunger <= 0 || p.happy <= 0) p.distressMin++;
+    else if (p.hunger > 30 && p.happy > 30 && p.distressMin > 0) p.distressMin--;
+    if (p.distressMin >= DEATH_DISTRESS_MIN) { die(p, 'neglect'); break; }
+    // —— 成长 ——
+    const s = stageForAge(p.lastTick - p.hatchedAt);
+    if (s !== p.stage) { p.stage = s; events.push('evolve'); }
+  }
+  p.lastTick = now;
+  dirty = true;
+  return events;
+}
+function hatch(p, events) {
+  p.stage = 'baby'; p.hatchedAt = p.lastTick || Date.now(); p.warm = 100;
+  p.hunger = 70; p.happy = 80; p.energy = 90; p.clean = 100;
+  if (events) events.push('hatch');
+}
+function die(p, cause) {
+  p.alive = false; p.deadAt = p.lastTick; p.deathCause = cause; p.sleeping = false;
+}
+
+/* ================= 存档 ================= */
+async function loadPet() {
+  const r = await fetch(SAVE_URL);
+  if (r.status === 401) { location.href = '/login'; return; }
+  const j = await r.json();
+  // merge into defaults so incomplete/old saves never break the game
+  pet = j.state ? Object.assign(newEgg(), j.state) : newEgg();
+  if (!SPR[pet.stage] && pet.stage !== 'egg') pet.stage = 'baby';
+  applySkin(pet.skin);
+  if (!j.state) dirty = true;
+}
+let saving = false;
+async function save() {
+  if (!pet || saving) return;
+  saving = true; dirty = false;
+  try {
+    await fetch(SAVE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ state: pet }),
+    });
+  } catch { dirty = true; }
+  saving = false;
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden' && pet) {
+    navigator.sendBeacon(SAVE_URL, new Blob([JSON.stringify({ state: pet })], { type: 'application/json' }));
+  }
+});
+
+/* ================= LCD 渲染 ================= */
+const cv = document.getElementById('lcd');
+const ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height;
+let frame = 0;
+let hearts = [];           // {x,y,ttl} 摸头爱心
+let evolveFlash = 0;       // 进化闪屏帧数
+
+function drawSprite(m, x, y) {
+  ctx.fillStyle = SKIN.ink;
+  for (let r = 0; r < m.length; r++)
+    for (let c = 0; c < m[r].length; c++)
+      if (m[r][c] === '#') ctx.fillRect(x + c, y + r, 1, 1);
+}
+function render() {
+  ctx.fillStyle = SKIN.lcd;
+  ctx.fillRect(0, 0, W, H);
+  if (!pet) return;
+
+  if (evolveFlash > 0 && evolveFlash % 2 === 0) {
+    ctx.fillStyle = SKIN.ink; ctx.fillRect(0, 0, W, H);
+    return;
+  }
+
+  if (!pet.alive) {
+    drawSprite(SPR_TOMB, 8, H - SPR_TOMB.length - 3);
+    const g = SPR.ghost[frame % 2];
+    drawSprite(g, 26, 6 + (frame % 2));
+    return;
+  }
+
+  const spr = SPR[pet.stage] ? SPR[pet.stage][frame % 2] : SPR.baby[frame % 2];
+  const sw = spr[0].length, sh = spr.length;
+  let px = Math.floor((W - sw) / 2), py = H - sh - 4;
+  if (pet.stage === 'egg') {
+    px += (frame % 2 ? 1 : 0) * (pet.warm > 60 ? 1 : 0);   // 快孵化时晃动
+  } else if (!pet.sleeping) {
+    px += (frame % 4 < 2 ? -2 : 2);                        // 左右踱步
+  }
+  drawSprite(spr, px, py);
+
+  if (pet.sleeping) {
+    // 夜幕 + Z z z
+    ctx.fillStyle = hexToRgba(SKIN.ink, .25); ctx.fillRect(0, 0, W, H);
+    const zx = px + sw + 2, zy = py - 8;
+    drawSprite(SPR_Z, Math.min(zx, W - 4), Math.max(1, zy + (frame % 2)));
+  }
+  if (pet.sick && frame % 2 === 0) {
+    // 生病:头顶冒汗点
+    ctx.fillStyle = SKIN.ink;
+    ctx.fillRect(px - 2, py + 1, 1, 2);
+  }
+  for (let i = 0; i < pet.poops; i++) {
+    drawSprite(SPR_POOP, W - 8 - i * 8, H - 6 + (frame % 2 && i === 0 ? -1 : 0));
+  }
+  hearts = hearts.filter(h => --h.ttl > 0);
+  for (const h of hearts) drawSprite(SPR_HEART, h.x, h.y - Math.floor((10 - h.ttl) / 2));
+}
+
+/* ================= UI:图标 + ABC 键 ================= */
+const $ = id => document.getElementById(id);
+const speechEl = $('speech');
+let speechTimer = null;
+function say(text, sticky) {
+  speechEl.textContent = text;
+  clearTimeout(speechTimer);
+  if (!sticky) speechTimer = setTimeout(() => { speechEl.textContent = defaultSpeech(); }, 3000);
+}
+function defaultSpeech() {
+  if (!pet) return '';
+  if (!pet.alive) return '……';
+  if (pet.stage === 'egg') return '点点屏幕,帮它暖暖蛋 👆';
+  if (pet.sleeping) return 'Zzz……(用灯叫醒它)';
+  if (pet.sick) return '它蔫蔫的,快喂药!';
+  if (pet.hunger < 25) return '肚子咕咕叫了……';
+  if (pet.poops > 0) return '好像有点臭臭的……';
+  if (pet.happy < 25) return '它无聊地看着你';
+  return '它开心地晃来晃去~';
+}
+
+/* ---- 功能图标(经典拓麻歌子布局:屏幕上下各一排) ---- */
+const ICONS = [
+  { px: 'meal',  label: '吃饭', act: doMeal,  can: () => petActive() && !pet.sleeping },
+  { px: 'snack', label: '零食', act: doSnack, can: () => petActive() && !pet.sleeping },
+  { px: 'play',  label: '玩耍', act: doPlay,  can: () => petActive() && !pet.sleeping && pet.energy >= 15 },
+  { px: 'clean', label: '打扫', act: doClean, can: () => petActive() },
+  { px: 'med',   label: '吃药', act: doMed,   can: () => petActive() && !pet.sleeping },
+  { px: 'light', label: '灯',   act: doLight, can: () => petActive() },
+  { px: 'stats', label: '状态', act: showStats, can: () => petActive() },
+];
+function petActive() { return pet && pet.alive && pet.stage !== 'egg'; }
+let cursor = -1;
+let iconBuilt = false;
+
+function buildIcons() {
+  const mk = (ic, i) => {
+    const el = document.createElement('div');
+    el.className = 'ico';
+    el.title = ic.label;
+    const c2 = document.createElement('canvas');
+    c2.width = 12; c2.height = 12;
+    el.appendChild(c2);
+    el.onclick = () => { if (!ic.can()) { sfx.no(); return; } cursor = i; refreshIcons(); execCursor(); };
+    return el;
+  };
+  ICONS.slice(0, 4).forEach((ic, i) => $('rowTop').appendChild(mk(ic, i)));
+  ICONS.slice(4).forEach((ic, i) => $('rowBottom').appendChild(mk(ic, i + 4)));
+  // 第 8 格:呼叫提示 ❗ (不可选,亮 = 它需要你)
+  const attn = document.createElement('div');
+  attn.className = 'ico'; attn.id = 'icoAttn'; attn.title = '它在呼唤你';
+  const ac = document.createElement('canvas');
+  ac.width = 12; ac.height = 12;
+  attn.appendChild(ac);
+  $('rowBottom').appendChild(attn);
+  iconBuilt = true;
+}
+function iconEls() { return [...document.querySelectorAll('.iconrow .ico')].slice(0, 7); }
+function refreshIcons() {
+  iconEls().forEach((el, i) => {
+    const sel = i === cursor;
+    el.classList.toggle('sel', sel);
+    drawIcon(el.firstChild, ICONS[i].px, sel ? 'sel' : ICONS[i].can() ? 'avail' : 'off');
+  });
+  const attn = $('icoAttn');
+  const needs = petActive() && (pet.hunger < 25 || pet.happy < 25 || pet.poops > 0 || pet.sick);
+  attn.classList.toggle('blink', !!needs);
+  drawIcon(attn.firstChild, 'attn', needs ? 'alert' : 'off');
+}
+function execCursor() {
+  if (cursor < 0) return;
+  const ic = ICONS[cursor];
+  if (!ic.can()) { sfx.no(); return; }
+  ic.act();
+}
+$('keyA').onclick = () => {
+  if (!petActive()) { sfx.no(); return; }
+  sfx.move();
+  cursor = (cursor + 1) % ICONS.length;
+  refreshIcons();
+  say('▸ ' + ICONS[cursor].label);
+};
+$('keyB').onclick = () => { sfx.press(); execCursor(); };
+$('keyC').onclick = () => { sfx.move(); cursor = -1; refreshIcons(); say(defaultSpeech(), true); };
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  const k = e.key.toLowerCase();
+  if (k === 'a') $('keyA').click();
+  else if (k === 'b' || k === 'enter') $('keyB').click();
+  else if (k === 'c' || k === 'escape') $('keyC').click();
+});
+
+function updateUI() {
+  if (!pet) return;
+  const isEgg = pet.stage === 'egg';
+
+  // 名字 + 年龄
+  const nameEl = $('petname');
+  if (isEgg) nameEl.innerHTML = '🥚 神秘的蛋 <small>孵化 ' + Math.floor(pet.warm) + '%</small>';
+  else {
+    const a = ageMs(pet), d = Math.floor(a / (24 * HOUR)), h = Math.floor(a % (24 * HOUR) / HOUR);
+    nameEl.innerHTML = (pet.name || '小家伙') +
+      ' <small>' + STAGE_NAME[pet.stage] + ' · ' + d + ' 天 ' + h + ' 小时</small>';
+  }
+
+  refreshIcons();
+  if (!pet.alive) showDead();
+  if (!speechEl.textContent) speechEl.textContent = defaultSpeech();
+}
+
+/* ---- 状态表 ---- */
+function setBar(barId, numId, v) {
+  const b = $(barId);
+  b.style.width = v + '%';
+  b.className = v < 25 ? 'bad' : '';
+  $(numId).textContent = Math.round(v);
+}
+function showStats() {
+  const a = ageMs(pet), d = Math.floor(a / (24 * HOUR)), h = Math.floor(a % (24 * HOUR) / HOUR);
+  $('statsMeta').textContent = (pet.name || '小家伙') + ' · ' + STAGE_NAME[pet.stage] + '期 · ' + d + ' 天 ' + h + ' 小时';
+  setBar('bHunger', 'nHunger', pet.hunger);
+  setBar('bHappy', 'nHappy', pet.happy);
+  setBar('bEnergy', 'nEnergy', pet.energy);
+  setBar('bClean', 'nClean', pet.clean);
+  $('statsOverlay').classList.add('show');
+}
+$('statsClose').onclick = () => { sfx.move(); $('statsOverlay').classList.remove('show'); };
+$('statsOverlay').addEventListener('click', e => { if (e.target.id === 'statsOverlay') $('statsOverlay').classList.remove('show'); });
+
+/* ---- 换壳 ---- */
+$('skinBtn').onclick = () => {
+  if (!pet) return;
+  const cur = SKIN_ORDER.indexOf(pet.skin);
+  pet.skin = SKIN_ORDER[(cur + 1) % SKIN_ORDER.length];
+  applySkin(pet.skin);
+  sfx.happy();
+  say('🎨 换上了「' + SKINS[pet.skin].label + '」的壳!');
+  dirty = true; save();
+};
+
+/* ---- 玩法说明 ---- */
+$('helpBtn').onclick = () => $('helpOverlay').classList.add('show');
+$('helpClose').onclick = () => $('helpOverlay').classList.remove('show');
+$('helpOverlay').addEventListener('click', e => { if (e.target.id === 'helpOverlay') $('helpOverlay').classList.remove('show'); });
+
+/* ================= 事件反馈 ================= */
+function handleEvents(events) {
+  if (!events || !events.length) return;
+  for (const e of events) {
+    if (e === 'hatch') { sfx.hatch(); askName(); }
+    else if (e === 'evolve') { sfx.evolve(); evolveFlash = 8; say('✨ ' + (pet.name || '它') + ' 长大了!变成' + STAGE_NAME[pet.stage] + '期啦!'); }
+    else if (e === 'sick') say('😨 它好像生病了……');
+    else if (e === 'poop') say('💩 它拉臭臭了……');
+    else if (e === 'sleep') say('它困得睡着了 zzz');
+    else if (e === 'wake') say('☀️ 它睡饱啦,精神满满!');
+  }
+  if (!pet.alive) { sfx.dead(); showDead(); }
+}
+
+/* ================= 操作 ================= */
+function after() { dirty = true; updateUI(); save(); }
+function doMeal() {
+  if (pet.hunger > 92) { sfx.no(); say('它摆摆手:吃不下了……'); return; }
+  pet.hunger = clamp(pet.hunger + 28);
+  sfx.eat(); say('🍙 吧唧吧唧,真香!'); after();
+}
+function doSnack() {
+  if (pet.hunger > 95) { sfx.no(); say('再吃要撑坏啦!'); return; }
+  pet.hunger = clamp(pet.hunger + 8);
+  pet.happy = clamp(pet.happy + 12);
+  sfx.eat(); say('🍭 眼睛都亮了!'); after();
+}
+function doClean() {
+  const had = pet.poops > 0 || pet.clean < 95;
+  pet.poops = 0; pet.clean = 100;
+  if (had) { sfx.happy(); say('🧹 打扫得干干净净!'); }
+  else say('已经很干净啦~');
+  after();
+}
+function doMed() {
+  if (!pet.sick) { sfx.no(); say('它没生病,不用吃药啦'); return; }
+  pet.sick = false; pet.sickSince = null;
+  pet.happy = clamp(pet.happy + 10);
+  sfx.happy(); say('💊 药到病除,它精神多了!'); after();
+}
+function doLight() {
+  pet.sleeping = !pet.sleeping;
+  say(pet.sleeping ? '🌙 关灯了,晚安~' : '💡 开灯!它揉揉眼睛醒了');
+  after();
+}
+
+// 摸摸屏幕:蛋 = 暖蛋,宠物 = 摸头
+cv.addEventListener('click', () => {
+  if (!pet || !pet.alive) return;
+  if (pet.stage === 'egg') {
+    sfx.press();
+    pet.warm = Math.min(100, pet.warm + 2.5);
+    if (pet.warm >= 100) { hatch(pet); handleEvents(['hatch']); }
+    else say('蛋壳暖暖的…… ' + Math.floor(pet.warm) + '%');
+    dirty = true; updateUI();
+    return;
+  }
+  if (pet.sleeping) return say('嘘——它在睡觉呢');
+  pet.happy = clamp(pet.happy + 1);
+  hearts.push({ x: 6 + Math.floor(Math.random() * (W - 16)), y: 8, ttl: 10 });
+  beep(1200, 0.04);
+  dirty = true;
+});
+
+/* ================= 起名 ================= */
+function askName() {
+  $('nameOverlay').classList.add('show');
+  $('nameInput').value = '';
+  setTimeout(() => $('nameInput').focus(), 50);
+}
+$('nameOk').onclick = () => {
+  const n = $('nameInput').value.trim().slice(0, 8);
+  pet.name = n || '蛋仔';
+  $('nameOverlay').classList.remove('show');
+  sfx.happy(); say('🐣 ' + pet.name + ' 出生啦!请好好照顾它~', true);
+  setTimeout(() => say(defaultSpeech()), 4000);
+  after();
+};
+$('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('nameOk').click(); });
+
+/* ================= 猜方向小游戏 ================= */
+const mg = { round: 0, wins: 0, answer: 0 };
+function doPlay() {
+  mg.round = 0; mg.wins = 0;
+  $('gameOverlay').classList.add('show');
+  mgNext();
+}
+function mgNext() {
+  mg.round++;
+  mg.answer = Math.random() < 0.5 ? 0 : 1;
+  $('mgRound').textContent = '第 ' + mg.round + ' / 5 回合 · 已猜对 ' + mg.wins;
+  $('mgPet').textContent = '🐥';
+  $('mgMsg').textContent = '它转过身去……它会往哪边看?';
+}
+function mgGuess(side) {
+  const hit = side === mg.answer;
+  if (hit) { mg.wins++; sfx.happy(); } else sfx.no();
+  $('mgPet').textContent = mg.answer === 0 ? '👈🐥' : '🐥👉';
+  $('mgMsg').textContent = hit ? '猜对啦!它咯咯直笑 😆' : '猜错了……它得意地扭扭 😝';
+  setTimeout(() => {
+    if (mg.round < 5) return mgNext();
+    $('gameOverlay').classList.remove('show');
+    pet.happy = clamp(pet.happy + 8 + mg.wins * 4);
+    pet.energy = clamp(pet.energy - 12);
+    pet.hunger = clamp(pet.hunger - 5);
+    say('🎲 玩了一局,猜对 ' + mg.wins + ' 次,它玩得很开心!');
+    after();
+  }, 900);
+}
+$('mgLeft').onclick = () => mgGuess(0);
+$('mgRight').onclick = () => mgGuess(1);
+
+/* ================= 死亡 / 重生 ================= */
+let deadShown = false;
+function showDead() {
+  if (deadShown) return;
+  deadShown = true;
+  const lived = pet.hatchedAt ? Math.max(1, Math.round((pet.deadAt - pet.hatchedAt) / (24 * HOUR) * 10) / 10) : 0;
+  $('deadTitle').textContent = (pet.name || '它') + ' 去当小天使了…';
+  $('deadMsg').textContent =
+    (pet.deathCause === 'sick' ? '它生病太久没有吃药。' : '它太久没人照顾,饿着肚子走了。') +
+    ' 它陪伴了你 ' + lived + ' 天。别难过,再孵一只蛋,这次好好待它吧。';
+  $('deadOverlay').classList.add('show');
+  say('……', true);
+  updateUI();
+}
+$('rebirthBtn').onclick = () => {
+  pet = Object.assign(newEgg(), { skin: pet.skin });   // 壳留着,崽换新
+  deadShown = false; cursor = -1;
+  $('deadOverlay').classList.remove('show');
+  sfx.press(); say('一颗新的蛋出现了!', true);
+  setTimeout(() => say(defaultSpeech()), 3000);
+  after();
+};
+
+/* ================= 主循环 ================= */
+async function main() {
+  buildIcons();
+  // 3D 壳加载失败(无 WebGL / CDN 不可达)不阻塞游戏,只是没有壳
+  try { await initEgg3D(); } catch (e) { console.error('egg3d init failed', e); }
+  await loadPet();
+  const ev = applyElapsed(pet, Date.now());
+  updateUI();
+  say(defaultSpeech(), true);
+  handleEvents(ev);
+  if (!pet.alive) showDead();
+  if (pet.stage === 'baby' && !pet.name) askName();   // 离线时孵化了还没起名
+  if (dirty) save();
+
+  setInterval(() => {                    // 动画帧
+    frame++;
+    if (evolveFlash > 0) evolveFlash--;
+    render();
+  }, 500);
+  setInterval(() => {                    // 时间推进
+    const ev2 = applyElapsed(pet, Date.now());
+    updateUI();
+    handleEvents(ev2);
+  }, 5000);
+  setInterval(() => { if (dirty) save(); }, 60 * 1000);
+  render();
+}
+main().catch(e => { console.error(e); say('加载失败了,刷新试试?', true); });
+</script>
+</body>
+</html>

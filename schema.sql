@@ -18,6 +18,13 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS sessions_expires_idx ON sessions(expires_at);
 
+-- Tamagotchi: one pet per user, state is a client-owned JSON blob
+CREATE TABLE IF NOT EXISTS pets (
+  user_id     INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  state       JSONB NOT NULL,
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- Single-room state snapshot (one row for now, keyed by 'main'; PR3 will add multi-room)
 CREATE TABLE IF NOT EXISTS rooms (
   id          TEXT PRIMARY KEY,
